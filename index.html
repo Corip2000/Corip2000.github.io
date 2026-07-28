@@ -498,7 +498,7 @@ function startApp(){
   $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#myCode').textContent = me.code.replace(/(\d{3})(\d{3})(\d{4})/,'$1 $2 $3');
   profiles.set(me.uid, Object.assign({id:me.uid}, profiles.get(me.uid)||{}, {name:me.name,pub:me.pub,code:me.code}));
-  initSW();
+  initSW().then(()=>{ if(window.Notification && Notification.permission==='granted') subscribePush(); });
   loadChats(); watchChats(); watchCalls(); watchFeed();
   document.addEventListener('click',()=>audioCtx(),{once:true});
   if(window.Notification && Notification.permission==='default' && !S.get('wa_nobar')) setTimeout(notifyBar,1500);
@@ -528,6 +528,7 @@ function beep(kind){
     o.start(t); o.stop(t+0.24);
   });
 }
+const VAPID_PUBLIC = 'BOT1ozlZEkGp4p0cjHSGWeu0aZpcE-reXLGBwgvByuS60HtlElLfiaDdLEyJy3ai9r-kUtiPRgu2e4FZm8vZnTY';
 const NOTIF_ICON = 'data:image/png;base64,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';
 let swReg=null, swErr=null;
 async function initSW(){
@@ -537,6 +538,31 @@ async function initSW(){
     await navigator.serviceWorker.ready;
     swErr=null;
   }catch(e){ swReg=null; swErr=e.message||String(e); }
+}
+function urlB64ToU8(s){
+  const pad='='.repeat((4-s.length%4)%4);
+  const raw=atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  const a=new Uint8Array(raw.length);
+  for(let i=0;i<raw.length;i++) a[i]=raw.charCodeAt(i);
+  return a;
+}
+async function subscribePush(){
+  try{
+    const reg = swReg || await initSW();
+    if(!reg || !reg.pushManager) return {ok:false, why:'браузер не поддерживает push'};
+    if(Notification.permission!=='granted') return {ok:false, why:'нет разрешения на уведомления'};
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlB64ToU8(VAPID_PUBLIC)});
+    const j = sub.toJSON();
+    const {error} = await sb.from('push_subs').upsert({endpoint:j.endpoint, uid:me.uid, sub:j, updated_at:Date.now()},{onConflict:'endpoint'});
+    if(error) return {ok:false, why:error.message};
+    return {ok:true};
+  }catch(e){ return {ok:false, why:e.message||String(e)}; }
+}
+async function pushTo(uids, title, body){
+  if(!uids || !uids.length) return;
+  try{ await sb.functions.invoke('push',{body:{to:uids, title:String(title||'WhereApp'), body:String(body||'Новое сообщение')}}); }
+  catch(e){}
 }
 async function askNotify(){
   if(!window.Notification) return 'unsupported';
@@ -565,6 +591,7 @@ function notifyBar(){
   w.querySelector('#nbNo').onclick=()=>{ S.set('wa_nobar','1'); w.remove(); };
   w.querySelector('#nbYes').onclick=async()=>{
     const r=await askNotify(); w.remove();
+    if(r==='granted') subscribePush();
     if(r==='denied') toast('Уведомления запрещены. Нажмите на замочек слева в адресной строке → Разрешения → Уведомления → Разрешить.',9000);
     else if(r==='default') toast('Окно запроса закрылось без ответа. Повторить можно в Настройках.',6000);
   };
@@ -969,6 +996,11 @@ async function sendMsg(kind, payload){
   await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
   setProg(0);
+  // На сервер уходит только факт сообщения, без текста — переписка остаётся зашифрованной
+  const kinds={text:'Новое сообщение',image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео'};
+  pushTo(c.members.filter(u=>u!==me.uid),
+         c.type==='group'?(c.name||'Группа'):me.name,
+         (c.type==='group'?me.name+': ':'')+(kinds[kind]||'Новое сообщение'));
 }
 async function sendSystem(text){
   const c=chats.get(curChat); if(!c) return;
@@ -1342,6 +1374,15 @@ $('#btnSettings').onclick=()=>{
         const reg=swReg||(navigator.serviceWorker?await navigator.serviceWorker.getRegistration():null);
         if(reg&&reg.showNotification){ await reg.showNotification('WhereApp',{body:'Тестовое уведомление',icon:NOTIF_ICON,tag:'whereapp'}); L.push('Показ через worker: отправлено ✓'); }
         else { new Notification('WhereApp',{body:'Тестовое уведомление'}); L.push('Показ напрямую: отправлено ✓'); }
+        const reg2=swReg||(navigator.serviceWorker?await navigator.serviceWorker.getRegistration():null);
+        if(reg2&&reg2.getNotifications){
+          const live=await reg2.getNotifications();
+          L.push('Уведомлений в системе сейчас: '+live.length+(live.length?' — значит показ работает, ищите в шторке' : ' — Android их скрывает, проверьте настройки Chrome'));
+        }
+        if(reg2&&reg2.pushManager){
+          const s=await reg2.pushManager.getSubscription();
+          L.push('Подписка на push: '+(s?'есть ✓':'нет'));
+        }
       }catch(e){ L.push('Показ уведомления: ОШИБКА — '+(e.message||e)); }
     }else L.push('Показ уведомления: пропущен, нет разрешения');
 
@@ -1432,6 +1473,7 @@ async function startCall(video){
   const payload={roomId, chatId:c.id, from:me.uid, fromName:me.name,
     title:c.type==='group'?(c.name||'Группа'):me.name, video, ts:Date.now()};
   for(const u of c.members) if(u!==me.uid) ringUser(u,payload).catch(()=>{});
+  pushTo(c.members.filter(u=>u!==me.uid), me.name, video?'Входящий видеозвонок':'Входящий звонок');
   sendSystem((video?'Видеозвонок':'Звонок')+' начат: '+me.name).catch(()=>{});
 }
 
