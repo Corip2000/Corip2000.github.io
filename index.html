@@ -524,13 +524,14 @@ function beep(kind){
     o.start(t); o.stop(t+0.24);
   });
 }
-let swReg=null;
+let swReg=null, swErr=null;
 async function initSW(){
-  if(!('serviceWorker' in navigator)) return;
+  if(!('serviceWorker' in navigator)){ swErr='браузер не поддерживает service worker'; return; }
   try{
     swReg = await navigator.serviceWorker.register('sw.js');
     await navigator.serviceWorker.ready;
-  }catch(e){ swReg=null; }
+    swErr=null;
+  }catch(e){ swReg=null; swErr=e.message||String(e); }
 }
 async function notify(title, body){
   beep();
@@ -1244,6 +1245,8 @@ $('#btnSettings').onclick=()=>{
     +'<button class="btn" id="saveN">Сохранить имя</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="copyC">Копировать код</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="notifBtn">Включить уведомления</button>'
+    +'<div style="height:8px"></div><button class="btn ghost" id="diagBtn">Проверить уведомления</button>'
+    +'<pre id="diagOut" class="hidden" style="white-space:pre-wrap;font-size:11.5px;background:#F6F3FC;border-radius:10px;padding:12px;margin-top:10px;line-height:1.6"></pre>'
     +'<div style="height:8px"></div><button class="btn ghost" id="expK">Ключ для входа на другом устройстве</button>'
     +'<div id="keyOut" class="hidden" style="margin-top:10px"><textarea class="inp" id="keyTxt" rows="3" readonly style="font-size:11px;resize:vertical"></textarea>'
     +'<div style="height:6px"></div><button class="btn ghost" id="copyK">Копировать ключ</button></div>'
@@ -1273,6 +1276,42 @@ $('#btnSettings').onclick=()=>{
     await initSW();
     audioCtx(); beep(); refreshNb();
     if(Notification.permission==='granted') notify('WhereApp','Уведомления работают 🎉');
+  };
+  m.querySelector('#diagBtn').onclick=async()=>{
+    const out=m.querySelector('#diagOut'); out.classList.remove('hidden');
+    out.textContent='Проверяем…';
+    const L=[];
+    L.push('Адрес: '+location.origin+location.pathname);
+    L.push('Защищённое соединение (https): '+(window.isSecureContext?'да':'НЕТ — уведомления работать не будут'));
+    L.push('Notification API: '+(window.Notification?'есть':'НЕТ'));
+    L.push('Разрешение: '+(window.Notification?Notification.permission:'—'));
+    L.push('Поддержка service worker: '+(('serviceWorker' in navigator)?'есть':'НЕТ'));
+
+    let swUrl=new URL('sw.js',location.href).href;
+    L.push('Ожидаемый путь к sw.js: '+swUrl);
+    try{
+      const r=await fetch(swUrl,{cache:'no-store'});
+      const txt=await r.text();
+      const looksJs = txt.indexOf('notificationclick')>=0;
+      L.push('Файл sw.js: HTTP '+r.status+(r.ok?(looksJs?' — найден и это нужный файл':' — найден, НО содержимое не то (возможно, страница 404)'):' — НЕ НАЙДЕН, загрузите sw.js рядом с index.html'));
+    }catch(e){ L.push('Файл sw.js: ошибка запроса — '+e.message); }
+
+    try{ await initSW(); }catch(e){}
+    L.push('Регистрация service worker: '+(swReg?'успешно':'НЕ УДАЛАСЬ'+(swErr?' — '+swErr:'')));
+    if(navigator.serviceWorker){
+      const reg=await navigator.serviceWorker.getRegistration();
+      L.push('Активный worker: '+(reg&&reg.active?'да':'нет'));
+    }
+
+    if(window.Notification && Notification.permission==='granted'){
+      try{
+        const reg=swReg||(navigator.serviceWorker?await navigator.serviceWorker.getRegistration():null);
+        if(reg&&reg.showNotification){ await reg.showNotification('WhereApp','Тестовое уведомление'); L.push('Показ через worker: отправлено ✓'); }
+        else { new Notification('WhereApp',{body:'Тестовое уведомление'}); L.push('Показ напрямую: отправлено ✓'); }
+      }catch(e){ L.push('Показ уведомления: ОШИБКА — '+(e.message||e)); }
+    }else L.push('Показ уведомления: пропущен, нет разрешения');
+
+    out.textContent=L.join('\n');
   };
   m.querySelector('#avPick').onclick=()=>{
     const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
