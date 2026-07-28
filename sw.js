@@ -1,10 +1,9 @@
-/* WhereApp — service worker.
-   Нужен только для показа уведомлений: Chrome на Android запрещает
-   создавать их напрямую со страницы. Кэширование намеренно не делаем,
-   чтобы новая версия сайта подхватывалась сразу. */
-
-self.addEventListener('install', () => self.skipWaiting());
+/* WhereApp — service worker. Нужен, чтобы Android Chrome мог показывать уведомления. */
+self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+
+/* обработчик обязателен, иначе Chrome не считает сайт устанавливаемым */
+self.addEventListener('fetch', e => {});
 
 self.addEventListener('notificationclick', e => {
   e.notification.close();

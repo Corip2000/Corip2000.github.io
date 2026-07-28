@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#7C3AED">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%237C3AED'/><text x='32' y='45' font-size='36' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>W</text></svg>">
 <style>
 :root{
@@ -164,6 +165,11 @@ body.mini #app{padding-top:46px}
 .incoming b{display:block}
 .incoming small{color:var(--mut)}
 .rbtn{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff}
+.notifbar{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;width:min(460px,94vw);z-index:88;
+  background:linear-gradient(135deg,var(--p),var(--p-dark));color:#fff;border-radius:14px;padding:12px 14px;
+  display:flex;align-items:center;gap:9px;box-shadow:0 12px 30px rgba(40,0,100,.4)}
+.notifbar button{color:#fff;font-weight:700;font-size:13.5px;padding:9px 12px;border-radius:9px;background:rgba(255,255,255,.18);flex:none}
+.notifbar button.yes{background:#fff;color:var(--p-dark)}
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2A0B57;color:#fff;padding:12px 18px;border-radius:12px;max-width:min(460px,92vw);z-index:90;box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:14px;line-height:1.4}
 .lightbox{position:fixed;inset:0;background:rgba(10,0,25,.94);z-index:80;display:grid;place-items:center;padding:20px}
 .lightbox img{max-width:100%;max-height:100%;border-radius:8px}
@@ -494,10 +500,8 @@ function startApp(){
   profiles.set(me.uid, Object.assign({id:me.uid}, profiles.get(me.uid)||{}, {name:me.name,pub:me.pub,code:me.code}));
   initSW();
   loadChats(); watchChats(); watchCalls(); watchFeed();
-  document.addEventListener('click',()=>{
-    try{ if(window.Notification && Notification.permission==='default') Notification.requestPermission(); }catch(e){}
-    audioCtx();
-  },{once:true});
+  document.addEventListener('click',()=>audioCtx(),{once:true});
+  if(window.Notification && Notification.permission==='default' && !S.get('wa_nobar')) setTimeout(notifyBar,1500);
   setInterval(()=>sb.from('profiles').update({last_seen:Date.now()}).eq('id',me.uid).then(()=>{},()=>{}), 45000);
 }
 
@@ -533,10 +537,42 @@ async function initSW(){
     swErr=null;
   }catch(e){ swReg=null; swErr=e.message||String(e); }
 }
+async function askNotify(){
+  if(!window.Notification) return 'unsupported';
+  if(Notification.permission==='granted'){ await initSW(); return 'granted'; }
+  if(Notification.permission==='denied') return 'denied';
+  audioCtx();
+  let res='default';
+  try{
+    res = await Notification.requestPermission();               // современный способ
+  }catch(e){
+    try{ res = await new Promise(ok=>Notification.requestPermission(ok)); }catch(e2){}   // старый, для Safari
+  }
+  if(res==='granted'){
+    await initSW();
+    await notify('WhereApp','Уведомления включены 🎉');
+  }
+  return res;
+}
+function notifyBar(){
+  if(document.querySelector('.notifbar')) return;
+  const w=el('div','notifbar');
+  w.innerHTML='<div style="flex:1"><b>Включить уведомления?</b>'
+    +'<div style="font-size:12.5px;opacity:.85">Чтобы не пропустить сообщения и звонки</div></div>'
+    +'<button id="nbNo">Позже</button><button id="nbYes" class="yes">Включить</button>';
+  document.body.appendChild(w);
+  w.querySelector('#nbNo').onclick=()=>{ S.set('wa_nobar','1'); w.remove(); };
+  w.querySelector('#nbYes').onclick=async()=>{
+    const r=await askNotify(); w.remove();
+    if(r==='denied') toast('Уведомления запрещены. Нажмите на замочек слева в адресной строке → Разрешения → Уведомления → Разрешить.',9000);
+    else if(r==='default') toast('Окно запроса закрылось без ответа. Повторить можно в Настройках.',6000);
+  };
+}
 async function notify(title, body){
   beep();
   if(!window.Notification || Notification.permission!=='granted') return;
-  const opts={ body:body, tag:'whereapp', renotify:true };
+  const opts={ body:body, tag:'whereapp', renotify:true, vibrate:[120,60,120], data:{url:location.href} };
+  try{ if(navigator.vibrate) navigator.vibrate([120,60,120]); }catch(e){}
   try{
     // Android Chrome показывает уведомления только через service worker
     if(swReg && swReg.showNotification){ await swReg.showNotification(title, opts); return; }
@@ -1269,13 +1305,10 @@ $('#btnSettings').onclick=()=>{
   };
   refreshNb();
   nb.onclick=async()=>{
-    if(!window.Notification) return;
-    if(Notification.permission==='denied')
-      return toast('Разрешение снято в настройках браузера. Откройте настройки сайта (замочек в адресной строке) и включите уведомления.',7000);
-    try{ await Notification.requestPermission(); }catch(e){}
-    await initSW();
-    audioCtx(); beep(); refreshNb();
-    if(Notification.permission==='granted') notify('WhereApp','Уведомления работают 🎉');
+    const r=await askNotify();
+    refreshNb();
+    if(r==='denied') toast('Разрешение снято в браузере. Нажмите на замочек слева в адресной строке → Разрешения → Уведомления → Разрешить.',9000);
+    else if(r==='default') toast('Окно запроса закрылось без ответа. Нажмите кнопку ещё раз.',6000);
   };
   m.querySelector('#diagBtn').onclick=async()=>{
     const out=m.querySelector('#diagOut'); out.classList.remove('hidden');
