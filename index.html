@@ -22,7 +22,7 @@ button{cursor:pointer;border:0;background:none}
 
 .gate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
   background:radial-gradient(120% 90% at 50% 0%,#7C3AED 0%,#4C1D95 55%,#2A0B57 100%);z-index:50;overflow-y:auto}
-.gate-card{width:100%;max-width:400px;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 24px 60px rgba(20,0,60,.4)}
+.gate-card{width:100%;max-width:400px;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 24px 60px rgba(20,0,60,.4);margin:auto}
 .logo{font-size:30px;font-weight:800;letter-spacing:-.6px;color:var(--p-dark);margin:0 0 4px}
 .logo span{color:var(--p)}
 .gate-sub{color:var(--mut);margin:0 0 22px;font-size:14px}
@@ -77,7 +77,7 @@ button{cursor:pointer;border:0;background:none}
 .bub .txt{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.8px}
 .bub .meta{float:right;font-size:11px;color:#8d86a5;margin:4px 0 0 10px;line-height:1}
 .bub img.ph{max-width:100%;border-radius:7px;display:block;cursor:zoom-in;background:#ddd6ee;min-height:60px}
-.bub video.vid{max-width:100%;border-radius:7px;display:block;background:#000}
+.bub video.ph{max-width:100%;border-radius:7px;display:block;background:#000}
 .bub audio{width:230px;max-width:100%;height:38px;margin:2px 0}
 .filecard{display:flex;align-items:center;gap:10px;padding:6px 4px;min-width:190px}
 .filecard .fi{width:38px;height:38px;border-radius:9px;background:var(--p);color:#fff;display:grid;place-items:center;flex:none}
@@ -125,7 +125,6 @@ button{cursor:pointer;border:0;background:none}
 .incoming b{display:block}
 .incoming small{color:var(--mut)}
 .rbtn{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff}
-
 .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#2A0B57;color:#fff;padding:12px 18px;border-radius:12px;max-width:min(460px,92vw);z-index:90;box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:14px;line-height:1.4}
 .lightbox{position:fixed;inset:0;background:rgba(10,0,25,.94);z-index:80;display:grid;place-items:center;padding:20px}
 .lightbox img{max-width:100%;max-height:100%;border-radius:8px}
@@ -160,7 +159,7 @@ button{cursor:pointer;border:0;background:none}
         <div style="height:8px"></div>
         <button class="btn" id="restoreGo">Восстановить профиль</button>
       </div>
-      <p class="note">Вы получите личный 10-значный код — по нему вас находят друзья. Все сообщения и файлы шифруются в браузере (AES-256 + ECDH), сервер хранит только шифротекст.</p>
+      <p class="note">Вы получите личный 10-значный код — по нему вас находят друзья. Все сообщения и файлы шифруются прямо в браузере (AES-256 + ECDH), на сервер уходит только шифротекст.</p>
     </div>
   </div>
 </div>
@@ -253,27 +252,29 @@ var supabase=(function(e){function t(e,t){var n={};for(var r in e)Object.prototy
 Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/auth-js: Invalid SIWE message field "resources". Every resource must be a valid string. Provided value: ${t}`);e+=`\n- ${t}`}m+=e}return`${p}\n${m}`}var Q=class extends Error{constructor({message:e,code:t,cause:n,name:r}){super(e,{cause:n}),this.__isWebAuthnError=!0,this.name=r??(n instanceof Error?n.name:void 0)??`Unknown Error`,this.code=t}toJSON(){return{name:this.name,message:this.message,code:this.code}}},li=class extends Q{constructor(e,t){super({code:`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY`,cause:t,message:e}),this.name=`WebAuthnUnknownError`,this.originalError=t}};function ui({error:e,options:t}){let{publicKey:n}=t;if(!n)throw Error(`options was missing required publicKey property`);if(e.name===`AbortError`){if(t.signal instanceof AbortSignal)return new Q({message:`Registration ceremony was sent an abort signal`,code:`ERROR_CEREMONY_ABORTED`,cause:e})}else if(e.name===`ConstraintError`){if(n.authenticatorSelection?.requireResidentKey===!0)return new Q({message:`Discoverable credentials were required but no available authenticator supported it`,code:`ERROR_AUTHENTICATOR_MISSING_DISCOVERABLE_CREDENTIAL_SUPPORT`,cause:e});if(t.mediation===`conditional`&&n.authenticatorSelection?.userVerification===`required`)return new Q({message:`User verification was required during automatic registration but it could not be performed`,code:`ERROR_AUTO_REGISTER_USER_VERIFICATION_FAILURE`,cause:e});if(n.authenticatorSelection?.userVerification===`required`)return new Q({message:`User verification was required but no available authenticator supported it`,code:`ERROR_AUTHENTICATOR_MISSING_USER_VERIFICATION_SUPPORT`,cause:e})}else if(e.name===`InvalidStateError`)return new Q({message:`The authenticator was previously registered`,code:`ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED`,cause:e});else if(e.name===`NotAllowedError`)return new Q({message:e.message,code:`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY`,cause:e});else if(e.name===`NotSupportedError`)return n.pubKeyCredParams.filter(e=>e.type===`public-key`).length===0?new Q({message:`No entry in pubKeyCredParams was of type "public-key"`,code:`ERROR_MALFORMED_PUBKEYCREDPARAMS`,cause:e}):new Q({message:`No available authenticator supported any of the specified pubKeyCredParams algorithms`,code:`ERROR_AUTHENTICATOR_NO_SUPPORTED_PUBKEYCREDPARAMS_ALG`,cause:e});else if(e.name===`SecurityError`){let t=window.location.hostname;if(_i(t)){if(n.rp.id!==t)return new Q({message:`The RP ID "${n.rp.id}" is invalid for this domain`,code:`ERROR_INVALID_RP_ID`,cause:e})}else return new Q({message:`${window.location.hostname} is an invalid domain`,code:`ERROR_INVALID_DOMAIN`,cause:e})}else if(e.name===`TypeError`){if(n.user.id.byteLength<1||n.user.id.byteLength>64)return new Q({message:`User ID was not between 1 and 64 characters`,code:`ERROR_INVALID_USER_ID_LENGTH`,cause:e})}else if(e.name===`UnknownError`)return new Q({message:`The authenticator was unable to process the specified options, or could not create a new credential`,code:`ERROR_AUTHENTICATOR_GENERAL_ERROR`,cause:e});return new Q({message:`a Non-Webauthn related error has occurred`,code:`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY`,cause:e})}function di({error:e,options:t}){let{publicKey:n}=t;if(!n)throw Error(`options was missing required publicKey property`);if(e.name===`AbortError`){if(t.signal instanceof AbortSignal)return new Q({message:`Authentication ceremony was sent an abort signal`,code:`ERROR_CEREMONY_ABORTED`,cause:e})}else if(e.name===`NotAllowedError`)return new Q({message:e.message,code:`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY`,cause:e});else if(e.name===`SecurityError`){let t=window.location.hostname;if(_i(t)){if(n.rpId!==t)return new Q({message:`The RP ID "${n.rpId}" is invalid for this domain`,code:`ERROR_INVALID_RP_ID`,cause:e})}else return new Q({message:`${window.location.hostname} is an invalid domain`,code:`ERROR_INVALID_DOMAIN`,cause:e})}else if(e.name===`UnknownError`)return new Q({message:`The authenticator was unable to process the specified options, or could not create a new assertion signature`,code:`ERROR_AUTHENTICATOR_GENERAL_ERROR`,cause:e});return new Q({message:`a Non-Webauthn related error has occurred`,code:`ERROR_PASSTHROUGH_SEE_CAUSE_PROPERTY`,cause:e})}let fi=new class{createNewAbortSignal(){if(this.controller){let e=Error(`Cancelling existing WebAuthn API call for new one`);e.name=`AbortError`,this.controller.abort(e)}let e=new AbortController;return this.controller=e,e.signal}cancelCeremony(){if(this.controller){let e=Error(`Manually cancelling existing WebAuthn API call`);e.name=`AbortError`,this.controller.abort(e),this.controller=void 0}}};function pi(e){if(!e)throw Error(`Credential creation options are required`);if(typeof PublicKeyCredential<`u`&&`parseCreationOptionsFromJSON`in PublicKeyCredential&&typeof PublicKeyCredential.parseCreationOptionsFromJSON==`function`)return PublicKeyCredential.parseCreationOptionsFromJSON(e);let{challenge:n,user:r,excludeCredentials:i}=e,a=t(e,[`challenge`,`user`,`excludeCredentials`]),o=hr(n).buffer,s=Object.assign(Object.assign({},r),{id:hr(r.id).buffer}),c=Object.assign(Object.assign({},a),{challenge:o,user:s});if(i&&i.length>0){c.excludeCredentials=Array(i.length);for(let e=0;e<i.length;e++){let t=i[e];c.excludeCredentials[e]=Object.assign(Object.assign({},t),{id:hr(t.id).buffer,type:t.type||`public-key`,transports:t.transports})}}return c}function mi(e){if(!e)throw Error(`Credential request options are required`);if(typeof PublicKeyCredential<`u`&&`parseRequestOptionsFromJSON`in PublicKeyCredential&&typeof PublicKeyCredential.parseRequestOptionsFromJSON==`function`)return PublicKeyCredential.parseRequestOptionsFromJSON(e);let{challenge:n,allowCredentials:r}=e,i=t(e,[`challenge`,`allowCredentials`]),a=hr(n).buffer,o=Object.assign(Object.assign({},i),{challenge:a});if(r&&r.length>0){o.allowCredentials=Array(r.length);for(let e=0;e<r.length;e++){let t=r[e];o.allowCredentials[e]=Object.assign(Object.assign({},t),{id:hr(t.id).buffer,type:t.type||`public-key`,transports:t.transports})}}return o}function hi(e){if(`toJSON`in e&&typeof e.toJSON==`function`)return e.toJSON();let t=e;return{id:e.id,rawId:e.id,response:{attestationObject:z(new Uint8Array(e.response.attestationObject)),clientDataJSON:z(new Uint8Array(e.response.clientDataJSON))},type:`public-key`,clientExtensionResults:e.getClientExtensionResults(),authenticatorAttachment:t.authenticatorAttachment??void 0}}function gi(e){if(`toJSON`in e&&typeof e.toJSON==`function`)return e.toJSON();let t=e,n=e.getClientExtensionResults(),r=e.response;return{id:e.id,rawId:e.id,response:{authenticatorData:z(new Uint8Array(r.authenticatorData)),clientDataJSON:z(new Uint8Array(r.clientDataJSON)),signature:z(new Uint8Array(r.signature)),userHandle:r.userHandle?z(new Uint8Array(r.userHandle)):void 0},type:`public-key`,clientExtensionResults:n,authenticatorAttachment:t.authenticatorAttachment??void 0}}function _i(e){return e===`localhost`||/^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,}$/i.test(e)}function vi(){return!!(B()&&`PublicKeyCredential`in window&&window.PublicKeyCredential&&`credentials`in navigator&&typeof(navigator==null?void 0:navigator.credentials)?.create==`function`&&typeof(navigator==null?void 0:navigator.credentials)?.get==`function`)}async function yi(e){try{let t=await navigator.credentials.create(e);return t?t instanceof PublicKeyCredential?{data:t,error:null}:{data:null,error:new li(`Browser returned unexpected credential type`,t)}:{data:null,error:new li(`Empty credential response`,t)}}catch(t){return{data:null,error:ui({error:t,options:e})}}}async function bi(e){try{let t=await navigator.credentials.get(e);return t?t instanceof PublicKeyCredential?{data:t,error:null}:{data:null,error:new li(`Browser returned unexpected credential type`,t)}:{data:null,error:new li(`Empty credential response`,t)}}catch(t){return{data:null,error:di({error:t,options:e})}}}let xi={hints:[`security-key`],authenticatorSelection:{authenticatorAttachment:`cross-platform`,requireResidentKey:!1,userVerification:`preferred`,residentKey:`discouraged`},attestation:`direct`},Si={userVerification:`preferred`,hints:[`security-key`],attestation:`direct`};function Ci(...e){let t=e=>typeof e==`object`&&!!e&&!Array.isArray(e),n=e=>e instanceof ArrayBuffer||ArrayBuffer.isView(e),r={};for(let i of e)if(i)for(let e in i){let a=i[e];if(a!==void 0)if(Array.isArray(a))r[e]=a;else if(n(a))r[e]=a;else if(t(a)){let n=r[e];t(n)?r[e]=Ci(n,a):r[e]=Ci(a)}else r[e]=a}return r}function wi(e,t){return Ci(xi,e,t||{})}function Ti(e,t){return Ci(Si,e,t||{})}var Ei=class{constructor(e){this.client=e,this.enroll=this._enroll.bind(this),this.challenge=this._challenge.bind(this),this.verify=this._verify.bind(this),this.authenticate=this._authenticate.bind(this),this.register=this._register.bind(this)}async _enroll(e){return this.client.mfa.enroll(Object.assign(Object.assign({},e),{factorType:`webauthn`}))}async _challenge({factorId:e,webauthn:t,friendlyName:n,signal:r},i){try{let{data:a,error:o}=await this.client.mfa.challenge({factorId:e,webauthn:t});if(!a)return{data:null,error:o};let s=r??fi.createNewAbortSignal();if(a.webauthn.type===`create`){let{user:e}=a.webauthn.credential_options.publicKey;if(!e.name){let t=n;if(t)e.name=`${e.id}:${t}`;else{let t=(await this.client.getUser()).data.user,n=t?.user_metadata?.name||t?.email||t?.id||`User`;e.name=`${e.id}:${n}`}}e.displayName||=e.name}switch(a.webauthn.type){case`create`:{let{data:t,error:n}=await yi({publicKey:wi(a.webauthn.credential_options.publicKey,i?.create),signal:s});return t?{data:{factorId:e,challengeId:a.id,webauthn:{type:a.webauthn.type,credential_response:t}},error:null}:{data:null,error:n}}case`request`:{let t=Ti(a.webauthn.credential_options.publicKey,i?.request),{data:n,error:r}=await bi(Object.assign(Object.assign({},a.webauthn.credential_options),{publicKey:t,signal:s}));return n?{data:{factorId:e,challengeId:a.id,webauthn:{type:a.webauthn.type,credential_response:n}},error:null}:{data:null,error:r}}}}catch(e){return P(e)?{data:null,error:e}:{data:null,error:new F(`Unexpected error in challenge`,e)}}}async _verify({challengeId:e,factorId:t,webauthn:n}){return this.client.mfa.verify({factorId:t,challengeId:e,webauthn:n})}async _authenticate({factorId:e,webauthn:{rpId:t=typeof window<`u`?window.location.hostname:void 0,rpOrigins:n=typeof window<`u`?[window.location.origin]:void 0,signal:r}={}},i){if(!t)return{data:null,error:new N(`rpId is required for WebAuthn authentication`)};try{if(!vi())return{data:null,error:new F(`Browser does not support WebAuthn`,null)};let{data:a,error:o}=await this.challenge({factorId:e,webauthn:{rpId:t,rpOrigins:n},signal:r},{request:i});if(!a)return{data:null,error:o};let{webauthn:s}=a;return this._verify({factorId:e,challengeId:a.challengeId,webauthn:{type:s.type,rpId:t,rpOrigins:n,credential_response:s.credential_response}})}catch(e){return P(e)?{data:null,error:e}:{data:null,error:new F(`Unexpected error in authenticate`,e)}}}async _register({friendlyName:e,webauthn:{rpId:t=typeof window<`u`?window.location.hostname:void 0,rpOrigins:n=typeof window<`u`?[window.location.origin]:void 0,signal:r}={}},i){if(!t)return{data:null,error:new N(`rpId is required for WebAuthn registration`)};try{if(!vi())return{data:null,error:new F(`Browser does not support WebAuthn`,null)};let{data:a,error:o}=await this._enroll({friendlyName:e});if(!a)return await this.client.mfa.listFactors().then(t=>t.data?.all.find(t=>t.factor_type===`webauthn`&&t.friendly_name===e&&t.status!==`unverified`)).then(e=>e?this.client.mfa.unenroll({factorId:e?.id}):void 0),{data:null,error:o};let{data:s,error:c}=await this._challenge({factorId:a.id,friendlyName:a.friendly_name,webauthn:{rpId:t,rpOrigins:n},signal:r},{create:i});return s?this._verify({factorId:a.id,challengeId:s.challengeId,webauthn:{rpId:t,rpOrigins:n,type:s.webauthn.type,credential_response:s.webauthn.credential_response}}):{data:null,error:c}}catch(e){return P(e)?{data:null,error:e}:{data:null,error:new F(`Unexpected error in register`,e)}}}};ii();let Di={url:`http://localhost:9999`,storageKey:`supabase.auth.token`,autoRefreshToken:!0,persistSession:!0,detectSessionInUrl:!0,headers:Bn,flowType:`implicit`,debug:!1,hasCustomAuthorizationHeader:!1,throwOnError:!1,lockAcquireTimeout:5e3,skipAutoInitialize:!1,experimental:{}},$={};var Oi=class e{get jwks(){return $[this.storageKey]?.jwks??{keys:[]}}set jwks(e){$[this.storageKey]=Object.assign(Object.assign({},$[this.storageKey]),{jwks:e})}get jwks_cached_at(){return $[this.storageKey]?.cachedAt??-(2**53-1)}set jwks_cached_at(e){$[this.storageKey]=Object.assign(Object.assign({},$[this.storageKey]),{cachedAt:e})}constructor(t){var n;this.userStorage=null,this.memoryStorage=null,this.stateChangeEmitters=new Map,this.autoRefreshTicker=null,this.autoRefreshTickTimeout=null,this.visibilityChangedCallback=null,this.refreshingDeferred=null,this.lastRefreshFailure=null,this._sessionRemovalEpoch=0,this.initializePromise=null,this._pendingInitNotifications=null,this.detectSessionInUrl=!0,this.hasCustomAuthorizationHeader=!1,this.suppressGetSessionWarning=!1,this.lock=null,this.lockAcquired=!1,this.pendingInLock=[],this.broadcastChannel=null,this.logger=console.log;let r=Object.assign(Object.assign({},Di),t);if(this.storageKey=r.storageKey,this.instanceID=e.nextInstanceID[this.storageKey]??0,e.nextInstanceID[this.storageKey]=this.instanceID+1,this.logDebugMessages=!!r.debug,typeof r.debug==`function`&&(this.logger=r.debug),this.instanceID>0&&B()){let e=`${this._logPrefix()} Multiple GoTrueClient instances detected in the same browser context. It is not an error, but this should be avoided as it may produce undefined behavior when used concurrently under the same storage key.`;console.warn(e),this.logDebugMessages&&console.trace(e)}if(this.persistSession=r.persistSession,this.autoRefreshToken=r.autoRefreshToken,this.experimental=r.experimental??{},this.admin=new Xr({url:r.url,headers:r.headers,fetch:r.fetch,experimental:this.experimental}),this.url=r.url,this.headers=r.headers,this.fetch=xr(r.fetch),this.detectSessionInUrl=r.detectSessionInUrl,this.flowType=r.flowType,this.hasCustomAuthorizationHeader=r.hasCustomAuthorizationHeader,this.throwOnError=r.throwOnError,this.lockAcquireTimeout=r.lockAcquireTimeout,r.lock!=null&&(this.lock=r.lock),this.jwks||(this.jwks={keys:[]},this.jwks_cached_at=-(2**53-1)),this.mfa={verify:this._verify.bind(this),enroll:this._enroll.bind(this),unenroll:this._unenroll.bind(this),challenge:this._challenge.bind(this),listFactors:this._listFactors.bind(this),challengeAndVerify:this._challengeAndVerify.bind(this),getAuthenticatorAssuranceLevel:this._getAuthenticatorAssuranceLevel.bind(this),webauthn:new Ei(this)},this.oauth={getAuthorizationDetails:this._getAuthorizationDetails.bind(this),approveAuthorization:this._approveAuthorization.bind(this),denyAuthorization:this._denyAuthorization.bind(this),listGrants:this._listOAuthGrants.bind(this),revokeGrant:this._revokeOAuthGrant.bind(this)},this.passkey={startRegistration:this._startPasskeyRegistration.bind(this),verifyRegistration:this._verifyPasskeyRegistration.bind(this),startAuthentication:this._startPasskeyAuthentication.bind(this),verifyAuthentication:this._verifyPasskeyAuthentication.bind(this),list:this._listPasskeys.bind(this),update:this._updatePasskey.bind(this),delete:this._deletePasskey.bind(this)},this.persistSession?(r.storage?this.storage=r.storage:yr()?this.storage=globalThis.localStorage:(this.memoryStorage={},this.storage=Zr(this.memoryStorage)),r.userStorage&&(this.userStorage=r.userStorage)):(this.memoryStorage={},this.storage=Zr(this.memoryStorage)),B()&&globalThis.BroadcastChannel&&this.persistSession&&this.storageKey){try{this.broadcastChannel=new globalThis.BroadcastChannel(this.storageKey)}catch(e){console.error(`Failed to create a new BroadcastChannel, multi-tab state changes will not be available`,e)}(n=this.broadcastChannel)==null||n.addEventListener(`message`,async e=>{this._debug(`received broadcast notification from other tab or client`,e),(e.data.event===`TOKEN_REFRESHED`||e.data.event===`SIGNED_IN`)&&(this.lastRefreshFailure=null);try{await this._notifyAllSubscribers(e.data.event,e.data.session,!1)}catch(e){this._debug(`#broadcastChannel`,`error`,e)}})}r.skipAutoInitialize||this.initialize().catch(e=>{this._debug(`#initialize()`,`error`,e)})}isThrowOnErrorEnabled(){return this.throwOnError}_returnResult(e){if(this.throwOnError&&e&&e.error)throw e.error;return e}_logPrefix(){return`GoTrueClient@${this.storageKey}:${this.instanceID} (${Rn}) ${new Date().toISOString()}`}_debug(...e){return this.logDebugMessages&&this.logger(this._logPrefix(),...e),this}async initialize(){if(this.initializePromise)return await this.initializePromise;this._pendingInitNotifications=[],this.initializePromise=(async()=>this.lock==null?await this._initialize():await this._acquireLock(this.lockAcquireTimeout,async()=>await this._initialize()))();let e=await this.initializePromise,t=this._pendingInitNotifications??[];this._pendingInitNotifications=null;for(let e of t)await this._notifyAllSubscribers(e.event,e.session,e.broadcast);return e}async _initialize(){try{let e={},t=`none`;if(B()&&(e=br(window.location.href),this._isImplicitGrantCallback(e)?t=`implicit`:await this._isPKCECallback(e)&&(t=`pkce`)),B()&&this.detectSessionInUrl&&t!==`none`){let{data:n,error:r}=await this._getSessionFromURL(e,t);if(r){if(this._debug(`#_initialize()`,`error detecting session from URL`,r),Yn(r)){let e=r.details?.code;if(e===`identity_already_exists`||e===`identity_not_found`||e===`single_identity_not_deletable`)return{error:r}}return{error:r}}let{session:i,redirectType:a}=n;return this._debug(`#_initialize()`,`detected session in URL`,i,`redirect type`,a),await this._saveSession(i),setTimeout(async()=>{a===`recovery`?await this._notifyAllSubscribers(`PASSWORD_RECOVERY`,i):await this._notifyAllSubscribers(`SIGNED_IN`,i)},0),{error:null}}return await this._recoverAndRefresh(),{error:null}}catch(e){return P(e)?this._returnResult({error:e}):this._returnResult({error:new F(`Unexpected error during initialization`,e)})}finally{await this._handleVisibilityChange(),this._debug(`#_initialize()`,`end`)}}async signInAnonymously(e){try{let{data:t,error:n}=await J(this.fetch,`POST`,`${this.url}/signup`,{headers:this.headers,body:{data:e?.options?.data??{},gotrue_meta_security:{captcha_token:e?.options?.captchaToken}},xform:Y});if(n||!t)return this._returnResult({data:{user:null,session:null},error:n});let r=t.session,i=t.user;return t.session&&(await this._saveSession(t.session),await this._notifyAllSubscribers(`SIGNED_IN`,r)),this._returnResult({data:{user:i,session:r},error:null})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async signUp(e){try{let t;if(`email`in e){let{email:n,password:r,options:i}=e,a=null,o=null;this.flowType===`pkce`&&([a,o]=await W(this.storage,this.storageKey)),t=await J(this.fetch,`POST`,`${this.url}/signup`,{headers:this.headers,redirectTo:i?.emailRedirectTo,body:{email:n,password:r,data:i?.data??{},gotrue_meta_security:{captcha_token:i?.captchaToken},code_challenge:a,code_challenge_method:o},xform:Y})}else if(`phone`in e){let{phone:n,password:r,options:i}=e;t=await J(this.fetch,`POST`,`${this.url}/signup`,{headers:this.headers,body:{phone:n,password:r,data:i?.data??{},channel:i?.channel??`sms`,gotrue_meta_security:{captcha_token:i?.captchaToken}},xform:Y})}else throw new qn(`You must provide either an email or phone number and a password`);let{data:n,error:r}=t;if(r||!n)return await U(this.storage,`${this.storageKey}-code-verifier`),this._returnResult({data:{user:null,session:null},error:r});let i=n.session,a=n.user;return n.session&&(await this._saveSession(n.session),await this._notifyAllSubscribers(`SIGNED_IN`,i)),this._returnResult({data:{user:a,session:i},error:null})}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async signInWithPassword(e){try{let t;if(`email`in e){let{email:n,password:r,options:i}=e;t=await J(this.fetch,`POST`,`${this.url}/token?grant_type=password`,{headers:this.headers,body:{email:n,password:r,gotrue_meta_security:{captcha_token:i?.captchaToken}},xform:Wr})}else if(`phone`in e){let{phone:n,password:r,options:i}=e;t=await J(this.fetch,`POST`,`${this.url}/token?grant_type=password`,{headers:this.headers,body:{phone:n,password:r,gotrue_meta_security:{captcha_token:i?.captchaToken}},xform:Wr})}else throw new qn(`You must provide either an email or phone number and a password`);let{data:n,error:r}=t;if(r)return this._returnResult({data:{user:null,session:null},error:r});if(!n||!n.session||!n.user){let e=new R;return this._returnResult({data:{user:null,session:null},error:e})}return n.session&&(await this._saveSession(n.session),await this._notifyAllSubscribers(`SIGNED_IN`,n.session)),this._returnResult({data:Object.assign({user:n.user,session:n.session},n.weak_password?{weakPassword:n.weak_password}:null),error:r})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async signInWithOAuth(e){return await this._handleProviderSignIn(e.provider,{redirectTo:e.options?.redirectTo,scopes:e.options?.scopes,queryParams:e.options?.queryParams,skipBrowserRedirect:e.options?.skipBrowserRedirect})}async exchangeCodeForSession(e){return await this.initializePromise,this.lock==null?this._exchangeCodeForSession(e):this._acquireLock(this.lockAcquireTimeout,async()=>this._exchangeCodeForSession(e))}async signInWithWeb3(e){let{chain:t}=e;switch(t){case`ethereum`:return await this.signInWithEthereum(e);case`solana`:return await this.signInWithSolana(e);default:throw Error(`@supabase/auth-js: Unsupported chain "${t}"`)}}async signInWithEthereum(e){let t,n;if(`message`in e)t=e.message,n=e.signature;else{let{chain:r,wallet:i,statement:a,options:o}=e,s;if(B())if(typeof i==`object`)s=i;else{let e=window;if(`ethereum`in e&&typeof e.ethereum==`object`&&`request`in e.ethereum&&typeof e.ethereum.request==`function`)s=e.ethereum;else throw Error(`@supabase/auth-js: No compatible Ethereum wallet interface on the window object (window.ethereum) detected. Make sure the user already has a wallet installed and connected for this app. Prefer passing the wallet interface object directly to signInWithWeb3({ chain: 'ethereum', wallet: resolvedUserWallet }) instead.`)}else{if(typeof i!=`object`||!o?.url)throw Error(`@supabase/auth-js: Both wallet and url must be specified in non-browser environments.`);s=i}let c=new URL(o?.url??window.location.href),l=await s.request({method:`eth_requestAccounts`}).then(e=>e).catch(()=>{throw Error(`@supabase/auth-js: Wallet method eth_requestAccounts is missing or invalid`)});if(!l||l.length===0)throw Error(`@supabase/auth-js: No accounts available. Please ensure the wallet is connected.`);let u=ai(l[0]),d=o?.signInWithEthereum?.chainId;d||=oi(await s.request({method:`eth_chainId`})),t=ci({domain:c.host,address:u,statement:a,uri:c.href,version:`1`,chainId:d,nonce:o?.signInWithEthereum?.nonce,issuedAt:o?.signInWithEthereum?.issuedAt??new Date,expirationTime:o?.signInWithEthereum?.expirationTime,notBefore:o?.signInWithEthereum?.notBefore,requestId:o?.signInWithEthereum?.requestId,resources:o?.signInWithEthereum?.resources}),n=await s.request({method:`personal_sign`,params:[si(t),u]})}try{let{data:r,error:i}=await J(this.fetch,`POST`,`${this.url}/token?grant_type=web3`,{headers:this.headers,body:Object.assign({chain:`ethereum`,message:t,signature:n},e.options?.captchaToken?{gotrue_meta_security:{captcha_token:e.options?.captchaToken}}:null),xform:Y});if(i)throw i;if(!r||!r.session||!r.user){let e=new R;return this._returnResult({data:{user:null,session:null},error:e})}return r.session&&(await this._saveSession(r.session),await this._notifyAllSubscribers(`SIGNED_IN`,r.session)),this._returnResult({data:Object.assign({},r),error:i})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async signInWithSolana(e){let t,n;if(`message`in e)t=e.message,n=e.signature;else{let{chain:r,wallet:i,statement:a,options:o}=e,s;if(B())if(typeof i==`object`)s=i;else{let e=window;if(`solana`in e&&typeof e.solana==`object`&&(`signIn`in e.solana&&typeof e.solana.signIn==`function`||`signMessage`in e.solana&&typeof e.solana.signMessage==`function`))s=e.solana;else throw Error(`@supabase/auth-js: No compatible Solana wallet interface on the window object (window.solana) detected. Make sure the user already has a wallet installed and connected for this app. Prefer passing the wallet interface object directly to signInWithWeb3({ chain: 'solana', wallet: resolvedUserWallet }) instead.`)}else{if(typeof i!=`object`||!o?.url)throw Error(`@supabase/auth-js: Both wallet and url must be specified in non-browser environments.`);s=i}let c=new URL(o?.url??window.location.href);if(`signIn`in s&&s.signIn){let e=await s.signIn(Object.assign(Object.assign(Object.assign({issuedAt:new Date().toISOString()},o?.signInWithSolana),{version:`1`,domain:c.host,uri:c.href}),a?{statement:a}:null)),r;if(Array.isArray(e)&&e[0]&&typeof e[0]==`object`)r=e[0];else if(e&&typeof e==`object`&&`signedMessage`in e&&`signature`in e)r=e;else throw Error(`@supabase/auth-js: Wallet method signIn() returned unrecognized value`);if(`signedMessage`in r&&`signature`in r&&(typeof r.signedMessage==`string`||r.signedMessage instanceof Uint8Array)&&r.signature instanceof Uint8Array)t=typeof r.signedMessage==`string`?r.signedMessage:new TextDecoder().decode(r.signedMessage),n=r.signature;else throw Error(`@supabase/auth-js: Wallet method signIn() API returned object without signedMessage and signature fields`)}else{if(!(`signMessage`in s)||typeof s.signMessage!=`function`||!(`publicKey`in s)||typeof s!=`object`||!s.publicKey||!(`toBase58`in s.publicKey)||typeof s.publicKey.toBase58!=`function`)throw Error(`@supabase/auth-js: Wallet does not have a compatible signMessage() and publicKey.toBase58() API`);t=[`${c.host} wants you to sign in with your Solana account:`,s.publicKey.toBase58(),...a?[``,a,``]:[``],`Version: 1`,`URI: ${c.href}`,`Issued At: ${o?.signInWithSolana?.issuedAt??new Date().toISOString()}`,...o?.signInWithSolana?.notBefore?[`Not Before: ${o.signInWithSolana.notBefore}`]:[],...o?.signInWithSolana?.expirationTime?[`Expiration Time: ${o.signInWithSolana.expirationTime}`]:[],...o?.signInWithSolana?.chainId?[`Chain ID: ${o.signInWithSolana.chainId}`]:[],...o?.signInWithSolana?.nonce?[`Nonce: ${o.signInWithSolana.nonce}`]:[],...o?.signInWithSolana?.requestId?[`Request ID: ${o.signInWithSolana.requestId}`]:[],...o?.signInWithSolana?.resources?.length?[`Resources`,...o.signInWithSolana.resources.map(e=>`- ${e}`)]:[]].join(`
 `);let e=await s.signMessage(new TextEncoder().encode(t),`utf8`);if(!e||!(e instanceof Uint8Array))throw Error(`@supabase/auth-js: Wallet signMessage() API returned an recognized value`);n=e}}try{let{data:r,error:i}=await J(this.fetch,`POST`,`${this.url}/token?grant_type=web3`,{headers:this.headers,body:Object.assign({chain:`solana`,message:t,signature:z(n)},e.options?.captchaToken?{gotrue_meta_security:{captcha_token:e.options?.captchaToken}}:null),xform:Y});if(i)throw i;if(!r||!r.session||!r.user){let e=new R;return this._returnResult({data:{user:null,session:null},error:e})}return r.session&&(await this._saveSession(r.session),await this._notifyAllSubscribers(`SIGNED_IN`,r.session)),this._returnResult({data:Object.assign({},r),error:i})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async _exchangeCodeForSession(e){let[t,n]=(await H(this.storage,`${this.storageKey}-code-verifier`)??``).split(`/`);try{if(!t&&this.flowType===`pkce`)throw new Zn;let{data:r,error:i}=await J(this.fetch,`POST`,`${this.url}/token?grant_type=pkce`,{headers:this.headers,body:{auth_code:e,code_verifier:t},xform:Y});if(await U(this.storage,`${this.storageKey}-code-verifier`),i)throw i;if(!r||!r.session||!r.user){let e=new R;return this._returnResult({data:{user:null,session:null,redirectType:null},error:e})}return r.session&&(await this._saveSession(r.session),await this._notifyAllSubscribers(n===`recovery`?`PASSWORD_RECOVERY`:`SIGNED_IN`,r.session)),this._returnResult({data:Object.assign(Object.assign({},r),{redirectType:n??null}),error:i})}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:{user:null,session:null,redirectType:null},error:e});throw e}}async signInWithIdToken(e){try{let{options:t,provider:n,token:r,access_token:i,nonce:a}=e,{data:o,error:s}=await J(this.fetch,`POST`,`${this.url}/token?grant_type=id_token`,{headers:this.headers,body:{provider:n,id_token:r,access_token:i,nonce:a,gotrue_meta_security:{captcha_token:t?.captchaToken}},xform:Y});if(s)return this._returnResult({data:{user:null,session:null},error:s});if(!o||!o.session||!o.user){let e=new R;return this._returnResult({data:{user:null,session:null},error:e})}return o.session&&(await this._saveSession(o.session),await this._notifyAllSubscribers(`SIGNED_IN`,o.session)),this._returnResult({data:o,error:s})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async signInWithOtp(e){try{if(`email`in e){let{email:t,options:n}=e,r=null,i=null;this.flowType===`pkce`&&([r,i]=await W(this.storage,this.storageKey));let{error:a}=await J(this.fetch,`POST`,`${this.url}/otp`,{headers:this.headers,body:{email:t,data:n?.data??{},create_user:n?.shouldCreateUser??!0,gotrue_meta_security:{captcha_token:n?.captchaToken},code_challenge:r,code_challenge_method:i},redirectTo:n?.emailRedirectTo});return this._returnResult({data:{user:null,session:null},error:a})}if(`phone`in e){let{phone:t,options:n}=e,{data:r,error:i}=await J(this.fetch,`POST`,`${this.url}/otp`,{headers:this.headers,body:{phone:t,data:n?.data??{},create_user:n?.shouldCreateUser??!0,gotrue_meta_security:{captcha_token:n?.captchaToken},channel:n?.channel??`sms`}});return this._returnResult({data:{user:null,session:null,messageId:r?.message_id},error:i})}throw new qn(`You must provide either an email or phone number.`)}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async verifyOtp(e){try{let t,n;`options`in e&&(t=e.options?.redirectTo,n=e.options?.captchaToken);let{data:r,error:i}=await J(this.fetch,`POST`,`${this.url}/verify`,{headers:this.headers,body:Object.assign(Object.assign({},e),{gotrue_meta_security:{captcha_token:n}}),redirectTo:t,xform:Y});if(i)throw i;if(!r)throw Error(`An error occurred on token verification.`);let a=r.session,o=r.user;return a?.access_token&&(await this._saveSession(a),await this._notifyAllSubscribers(e.type==`recovery`?`PASSWORD_RECOVERY`:`SIGNED_IN`,a)),this._returnResult({data:{user:o,session:a},error:null})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async signInWithSSO(e){try{let t=null,n=null;this.flowType===`pkce`&&([t,n]=await W(this.storage,this.storageKey));let r=await J(this.fetch,`POST`,`${this.url}/sso`,{body:Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({},`providerId`in e?{provider_id:e.providerId}:null),`domain`in e?{domain:e.domain}:null),{redirect_to:e.options?.redirectTo??void 0}),e?.options?.captchaToken?{gotrue_meta_security:{captcha_token:e.options.captchaToken}}:null),{skip_http_redirect:!0,code_challenge:t,code_challenge_method:n}),headers:this.headers,xform:Gr});return r.data?.url&&B()&&!e.options?.skipBrowserRedirect&&window.location.assign(r.data.url),this._returnResult(r)}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:null,error:e});throw e}}async reauthenticate(){return await this.initializePromise,this.lock==null?await this._reauthenticate():await this._acquireLock(this.lockAcquireTimeout,async()=>await this._reauthenticate())}async _reauthenticate(){try{return await this._useSession(async e=>{let{data:{session:t},error:n}=e;if(n)throw n;if(!t)throw new L;let{error:r}=await J(this.fetch,`GET`,`${this.url}/reauthenticate`,{headers:this.headers,jwt:t.access_token});return this._returnResult({data:{user:null,session:null},error:r})})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async resend(e){try{let t=`${this.url}/resend`;if(`email`in e){let{email:n,type:r,options:i}=e,a=null,o=null;this.flowType===`pkce`&&([a,o]=await W(this.storage,this.storageKey));let{error:s}=await J(this.fetch,`POST`,t,{headers:this.headers,body:{email:n,type:r,gotrue_meta_security:{captcha_token:i?.captchaToken},code_challenge:a,code_challenge_method:o},redirectTo:i?.emailRedirectTo});return s&&await U(this.storage,`${this.storageKey}-code-verifier`),this._returnResult({data:{user:null,session:null},error:s})}else if(`phone`in e){let{phone:n,type:r,options:i}=e,{data:a,error:o}=await J(this.fetch,`POST`,t,{headers:this.headers,body:{phone:n,type:r,gotrue_meta_security:{captcha_token:i?.captchaToken}}});return this._returnResult({data:{user:null,session:null,messageId:a?.message_id},error:o})}throw new qn(`You must provide either an email or phone number and a type`)}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async getSession(){return await this.initializePromise,this.lock==null?await this._useSession(async e=>e):await this._acquireLock(this.lockAcquireTimeout,async()=>this._useSession(async e=>e))}async _acquireLock(e,t){this._debug(`#_acquireLock`,`begin`,e);try{if(this.lockAcquired){let e=this.pendingInLock.length?this.pendingInLock[this.pendingInLock.length-1]:Promise.resolve(),n=(async()=>(await e,await t()))();return this.pendingInLock.push((async()=>{try{await n}catch{}})()),n}return await this.lock(`lock:${this.storageKey}`,e,async()=>{this._debug(`#_acquireLock`,`lock acquired for storage key`,this.storageKey);try{this.lockAcquired=!0;let e=t();for(this.pendingInLock.push((async()=>{try{await e}catch{}})()),await e;this.pendingInLock.length;){let e=[...this.pendingInLock];await Promise.all(e),this.pendingInLock.splice(0,e.length)}return await e}finally{this._debug(`#_acquireLock`,`lock released for storage key`,this.storageKey),this.lockAcquired=!1}})}finally{this._debug(`#_acquireLock`,`end`)}}async _useSession(e){this._debug(`#_useSession`,`begin`);try{return await e(await this.__loadSession())}finally{this._debug(`#_useSession`,`end`)}}async __loadSession(){this._debug(`#__loadSession()`,`begin`),this.lock!=null&&!this.lockAcquired&&this._debug(`#__loadSession()`,`used outside of an acquired lock!`,Error().stack);try{let e=null,t=await H(this.storage,this.storageKey);if(this._debug(`#getSession()`,`session from storage`,t),t!==null&&(this._isValidSession(t)?e=t:(this._debug(`#getSession()`,`session from storage is not valid`),await this._removeSession())),!e)return{data:{session:null},error:null};let n=e.expires_at?e.expires_at*1e3-Date.now()<zn:!1;if(this._debug(`#__loadSession()`,`session has${n?``:` not`} expired`,`expires_at`,e.expires_at),!n){if(this.userStorage){let t=await H(this.userStorage,this.storageKey+`-user`);t?.user?e.user=t.user:e.user=Lr()}if(this.storage.isServer&&e.user&&!e.user.__isUserNotAvailableProxy){let t={value:this.suppressGetSessionWarning};e.user=Rr(e.user,t),t.value&&(this.suppressGetSessionWarning=!0)}return{data:{session:e},error:null}}let{data:r,error:i}=await this._callRefreshToken(e.refresh_token);if(i){if(e.expires_at&&e.expires_at*1e3>Date.now()){let t=await H(this.storage,this.storageKey);if(t&&t.refresh_token===e.refresh_token)return this._returnResult({data:{session:e},error:null})}return this._returnResult({data:{session:null},error:i})}return this._returnResult({data:{session:r},error:null})}finally{this._debug(`#__loadSession()`,`end`)}}async getUser(e){if(e)return await this._getUser(e);await this.initializePromise;let t;return t=this.lock==null?await this._getUser():await this._acquireLock(this.lockAcquireTimeout,async()=>await this._getUser()),t.data.user&&(this.suppressGetSessionWarning=!0),t}async _getUser(e){try{return e?await J(this.fetch,`GET`,`${this.url}/user`,{headers:this.headers,jwt:e,xform:X}):await this._useSession(async e=>{let{data:t,error:n}=e;if(n)throw n;return!t.session?.access_token&&!this.hasCustomAuthorizationHeader?{data:{user:null},error:new L}:await J(this.fetch,`GET`,`${this.url}/user`,{headers:this.headers,jwt:t.session?.access_token??void 0,xform:X})})}catch(e){if(P(e))return Kn(e)&&(await this._removeSession(),await U(this.storage,`${this.storageKey}-code-verifier`)),this._returnResult({data:{user:null},error:e});throw e}}async updateUser(e,t={}){return await this.initializePromise,this.lock==null?await this._updateUser(e,t):await this._acquireLock(this.lockAcquireTimeout,async()=>await this._updateUser(e,t))}async _updateUser(e,t={}){try{return await this._useSession(async n=>{let{data:r,error:i}=n;if(i)throw i;if(!r.session)throw new L;let a=r.session,o=null,s=null;this.flowType===`pkce`&&e.email!=null&&([o,s]=await W(this.storage,this.storageKey));let{data:c,error:l}=await J(this.fetch,`PUT`,`${this.url}/user`,{headers:this.headers,redirectTo:t?.emailRedirectTo,body:Object.assign(Object.assign({},e),{code_challenge:o,code_challenge_method:s}),jwt:a.access_token,xform:X});if(l)throw l;return a.user=c.user,await this._saveSession(a),await this._notifyAllSubscribers(`USER_UPDATED`,a),this._returnResult({data:{user:a.user},error:null})})}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:{user:null},error:e});throw e}}async setSession(e){return await this.initializePromise,this.lock==null?await this._setSession(e):await this._acquireLock(this.lockAcquireTimeout,async()=>await this._setSession(e))}async _setSession(e){try{if(!e.access_token||!e.refresh_token)throw new L;let t=Date.now()/1e3,n=t,r=!0,i=null,{payload:a}=Tr(e.access_token);if(a.exp&&(n=a.exp,r=n<=t),r){let{data:t,error:n}=await this._callRefreshToken(e.refresh_token);if(n)return this._returnResult({data:{user:null,session:null},error:n});if(!t)return{data:{user:null,session:null},error:null};i=t}else{let{data:r,error:a}=await this._getUser(e.access_token);if(a)return this._returnResult({data:{user:null,session:null},error:a});i={access_token:e.access_token,refresh_token:e.refresh_token,user:r.user,token_type:`bearer`,expires_in:n-t,expires_at:n},await this._saveSession(i),await this._notifyAllSubscribers(`SIGNED_IN`,i)}return this._returnResult({data:{user:i.user,session:i},error:null})}catch(e){if(P(e))return this._returnResult({data:{session:null,user:null},error:e});throw e}}async refreshSession(e){return await this.initializePromise,this.lock==null?await this._refreshSession(e):await this._acquireLock(this.lockAcquireTimeout,async()=>await this._refreshSession(e))}async _refreshSession(e){try{return await this._useSession(async t=>{if(!e){let{data:n,error:r}=t;if(r)throw r;e=n.session??void 0}if(!e?.refresh_token)throw new L;let{data:n,error:r}=await this._callRefreshToken(e.refresh_token);return r?this._returnResult({data:{user:null,session:null},error:r}):n?this._returnResult({data:{user:n.user,session:n},error:null}):this._returnResult({data:{user:null,session:null},error:null})})}catch(e){if(P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}}async _getSessionFromURL(e,t){try{if(!B())throw new Jn(`No browser detected.`);if(e.error||e.error_description||e.error_code)throw new Jn(e.error_description||`Error in URL with unspecified error_description`,{error:e.error||`unspecified_error`,code:e.error_code||`unspecified_code`});switch(t){case`implicit`:if(this.flowType===`pkce`)throw new Xn(`Not a valid PKCE flow url.`);break;case`pkce`:if(this.flowType===`implicit`)throw new Jn(`Not a valid implicit grant flow url.`);break;default:}if(t===`pkce`){if(this._debug(`#_initialize()`,`begin`,`is PKCE flow`,!0),!e.code)throw new Xn(`No code detected.`);let{data:t,error:n}=await this._exchangeCodeForSession(e.code);if(n)throw n;let r=new URL(window.location.href);return r.searchParams.delete(`code`),window.history.replaceState(window.history.state,``,r.toString()),{data:{session:t.session,redirectType:t.redirectType??null},error:null}}let{provider_token:n,provider_refresh_token:r,access_token:i,refresh_token:a,expires_in:o,expires_at:s,token_type:c}=e;if(!i||!o||!a||!c)throw new Jn(`No session defined in URL`);let l=Math.round(Date.now()/1e3),u=parseInt(o),d=l+u;s&&(d=parseInt(s));let f=d-l;f*1e3<=M&&console.warn(`@supabase/gotrue-js: Session as retrieved from URL expires in ${f}s, should have been closer to ${u}s`);let p=d-u;l-p>=120?console.warn(`@supabase/gotrue-js: Session as retrieved from URL was issued over 120s ago, URL could be stale`,p,d,l):l-p<0&&console.warn(`@supabase/gotrue-js: Session as retrieved from URL was issued in the future? Check the device clock for skew`,p,d,l);let{data:m,error:h}=await this._getUser(i);if(h)throw h;let g={provider_token:n,provider_refresh_token:r,access_token:i,expires_in:u,expires_at:d,refresh_token:a,token_type:c,user:m.user};return window.location.hash=``,this._debug(`#_getSessionFromURL()`,`clearing window.location.hash`),this._returnResult({data:{session:g,redirectType:e.type},error:null})}catch(e){if(P(e))return this._returnResult({data:{session:null,redirectType:null},error:e});throw e}}_isImplicitGrantCallback(e){return typeof this.detectSessionInUrl==`function`?this.detectSessionInUrl(new URL(window.location.href),e):!!(e.access_token||e.error||e.error_description||e.error_code)}async _isPKCECallback(e){let t=await H(this.storage,`${this.storageKey}-code-verifier`);return!!(e.code&&t)}async signOut(e={scope:`global`}){return await this.initializePromise,this.lock==null?await this._signOut(e):await this._acquireLock(this.lockAcquireTimeout,async()=>await this._signOut(e))}async _signOut({scope:e}={scope:`global`}){return await this._useSession(async t=>{let n=async()=>{await this._removeSession(),await U(this.storage,`${this.storageKey}-code-verifier`)},{data:r,error:i}=t;if(i&&!Kn(i))return this._returnResult({error:i});let a=r.session?.access_token;if(a){let{error:t}=await this.admin.signOut(a,e);if(t&&!(Gn(t)&&(t.status===404||t.status===401||t.status===403)||Kn(t)))return e!==`others`&&await n(),this._returnResult({error:t})}return e!==`others`&&await n(),this._returnResult({error:null})})}onAuthStateChange(e){let t=vr(),n={id:t,callback:e,unsubscribe:()=>{this._debug(`#unsubscribe()`,`state change callback with id removed`,t),this.stateChangeEmitters.delete(t)}};return this._debug(`#onAuthStateChange()`,`registered callback with id`,t),this.stateChangeEmitters.set(t,n),(async()=>{await this.initializePromise,this.lock==null?await this._emitInitialSession(t):await this._acquireLock(this.lockAcquireTimeout,async()=>{this._emitInitialSession(t)})})(),{data:{subscription:n}}}async _emitInitialSession(e){return await this._useSession(async t=>{try{let{data:{session:n},error:r}=t;if(r)throw r;await this.stateChangeEmitters.get(e)?.callback(`INITIAL_SESSION`,n),this._debug(`INITIAL_SESSION`,`callback id`,e,`session`,n)}catch(t){await this.stateChangeEmitters.get(e)?.callback(`INITIAL_SESSION`,null),this._debug(`INITIAL_SESSION`,`callback id`,e,`error`,t),Kn(t)||er(t)||Gn(t)&&(t.code===`refresh_token_not_found`||t.code===`refresh_token_already_used`||t.code===`session_expired`)?console.warn(t):console.error(t)}})}async resetPasswordForEmail(e,t={}){let n=null,r=null;this.flowType===`pkce`&&([n,r]=await W(this.storage,this.storageKey,!0));try{return await J(this.fetch,`POST`,`${this.url}/recover`,{body:{email:e,code_challenge:n,code_challenge_method:r,gotrue_meta_security:{captcha_token:t.captchaToken}},headers:this.headers,redirectTo:t.redirectTo})}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:null,error:e});throw e}}async getUserIdentities(){try{let{data:e,error:t}=await this.getUser();if(t)throw t;return this._returnResult({data:{identities:e.user.identities??[]},error:null})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async linkIdentity(e){return`token`in e?this.linkIdentityIdToken(e):this.linkIdentityOAuth(e)}async linkIdentityOAuth(e){try{let{data:t,error:n}=await this._useSession(async t=>{let{data:n,error:r}=t;if(r)throw r;let i=await this._getUrlForProvider(`${this.url}/user/identities/authorize`,e.provider,{redirectTo:e.options?.redirectTo,scopes:e.options?.scopes,queryParams:e.options?.queryParams,skipBrowserRedirect:!0});return await J(this.fetch,`GET`,i,{headers:this.headers,jwt:n.session?.access_token??void 0})});if(n)throw n;return B()&&!e.options?.skipBrowserRedirect&&window.location.assign(t?.url),this._returnResult({data:{provider:e.provider,url:t?.url},error:null})}catch(t){if(P(t))return this._returnResult({data:{provider:e.provider,url:null},error:t});throw t}}async linkIdentityIdToken(e){return await this._useSession(async t=>{try{let{error:n,data:{session:r}}=t;if(n)throw n;let{options:i,provider:a,token:o,access_token:s,nonce:c}=e,{data:l,error:u}=await J(this.fetch,`POST`,`${this.url}/token?grant_type=id_token`,{headers:this.headers,jwt:r?.access_token??void 0,body:{provider:a,id_token:o,access_token:s,nonce:c,link_identity:!0,gotrue_meta_security:{captcha_token:i?.captchaToken}},xform:Y});return u?this._returnResult({data:{user:null,session:null},error:u}):!l||!l.session||!l.user?this._returnResult({data:{user:null,session:null},error:new R}):(l.session&&(await this._saveSession(l.session),await this._notifyAllSubscribers(`USER_UPDATED`,l.session)),this._returnResult({data:l,error:u}))}catch(e){if(await U(this.storage,`${this.storageKey}-code-verifier`),P(e))return this._returnResult({data:{user:null,session:null},error:e});throw e}})}async unlinkIdentity(e){try{return await this._useSession(async t=>{let{data:n,error:r}=t;if(r)throw r;return await J(this.fetch,`DELETE`,`${this.url}/user/identities/${e.identity_id}`,{headers:this.headers,jwt:n.session?.access_token??void 0})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _refreshAccessToken(e){let t=`#_refreshAccessToken()`;this._debug(t,`begin`);try{let n=Date.now();return await Dr(async n=>(n>0&&await Er(200*2**(n-1)),this._debug(t,`refreshing attempt`,n),await J(this.fetch,`POST`,`${this.url}/token?grant_type=refresh_token`,{body:{refresh_token:e},headers:this.headers,xform:Y})),(e,t)=>{let r=200*2**e;return t&&er(t)&&Date.now()+r-n<M})}catch(e){if(this._debug(t,`error`,e),P(e))return this._returnResult({data:{session:null,user:null},error:e});throw e}finally{this._debug(t,`end`)}}_isValidSession(e){return typeof e==`object`&&!!e&&`access_token`in e&&`refresh_token`in e&&`expires_at`in e}async _handleProviderSignIn(e,t){let n=await this._getUrlForProvider(`${this.url}/authorize`,e,{redirectTo:t.redirectTo,scopes:t.scopes,queryParams:t.queryParams});return this._debug(`#_handleProviderSignIn()`,`provider`,e,`options`,t,`url`,n),B()&&!t.skipBrowserRedirect&&window.location.assign(n),{data:{provider:e,url:n},error:null}}async _recoverAndRefresh(){let e=`#_recoverAndRefresh()`;this._debug(e,`begin`);try{let t=await H(this.storage,this.storageKey);if(t&&this.userStorage){let e=await H(this.userStorage,this.storageKey+`-user`);!this.storage.isServer&&Object.is(this.storage,this.userStorage)&&!e&&(e={user:t.user},await Cr(this.userStorage,this.storageKey+`-user`,e)),t.user=e?.user??Lr()}else if(t&&!t.user&&!t.user){let e=await H(this.storage,this.storageKey+`-user`);e&&e?.user?(t.user=e.user,await U(this.storage,this.storageKey+`-user`),await Cr(this.storage,this.storageKey,t)):t.user=Lr()}if(this._debug(e,`session from storage`,t),!this._isValidSession(t)){this._debug(e,`session is not valid`),t!==null&&await this._removeSession();return}let n=(t.expires_at??1/0)*1e3-Date.now()<zn;if(this._debug(e,`session has${n?``:` not`} expired with margin of ${zn}s`),n){if(this.autoRefreshToken&&t.refresh_token){let{error:n}=await this._callRefreshToken(t.refresh_token);n&&(nr(n)?this._debug(e,`refresh discarded by commit guard`,n):this._debug(e,`refresh failed`,n))}}else if(t.user&&t.user.__isUserNotAvailableProxy===!0)try{let{data:n,error:r}=await this._getUser(t.access_token);!r&&n?.user?(t.user=n.user,await this._saveSession(t),await this._notifyAllSubscribers(`SIGNED_IN`,t)):this._debug(e,`could not get user data, skipping SIGNED_IN notification`)}catch(t){console.error(`Error getting user data:`,t),this._debug(e,`error getting user data, skipping SIGNED_IN notification`,t)}else await this._notifyAllSubscribers(`SIGNED_IN`,t)}catch(t){this._debug(e,`error`,t),er(t)?console.warn(t):console.error(t);return}finally{this._debug(e,`end`)}}async _callRefreshToken(e){var t,n;if(!e)throw new L;if(this.refreshingDeferred)return this.refreshingDeferred.promise;if(this.lastRefreshFailure&&this.lastRefreshFailure.refreshToken===e&&Date.now()<this.lastRefreshFailure.expiresAt)return this._debug(`#_callRefreshToken()`,`returning cached failure (cooldown active)`),this.lastRefreshFailure.result;let r=`#_callRefreshToken()`;this._debug(r,`begin`);try{this.refreshingDeferred=new wr;let t=await H(this.storage,this.storageKey),{data:n,error:i}=await this._refreshAccessToken(e);if(i)throw i;if(!n.session)throw new L;let a=await H(this.storage,this.storageKey);if(t!==null&&(a===null||a.refresh_token!==t.refresh_token)){this._debug(r,`commit guard: storage changed since refresh started, discarding rotated tokens`,{startedWith:`present`,nowHolds:a?`replaced`:`cleared`});let e={data:null,error:new tr};return this.refreshingDeferred.resolve(e),e}let o=this._sessionRemovalEpoch;if(await this._saveSession(n.session),this._sessionRemovalEpoch!==o){this._debug(r,`commit guard (post-save): _removeSession ran during _saveSession, undoing write`),await U(this.storage,this.storageKey),this.userStorage&&await U(this.userStorage,this.storageKey+`-user`);let e={data:null,error:new tr};return this.refreshingDeferred.resolve(e),e}await this._notifyAllSubscribers(`TOKEN_REFRESHED`,n.session);let s={data:n.session,error:null};return this.lastRefreshFailure=null,this.refreshingDeferred.resolve(s),s}catch(i){if(this._debug(r,`error`,i),P(i)){let n={data:null,error:i};if(!er(i)){let e=await H(this.storage,this.storageKey);e?.expires_at&&e.expires_at*1e3>Date.now()?this._debug(r,`proactive refresh failed, access token still valid — preserving session`):await this._removeSession()}return this.lastRefreshFailure={refreshToken:e,result:n,expiresAt:Date.now()+6e4},(t=this.refreshingDeferred)==null||t.resolve(n),n}throw(n=this.refreshingDeferred)==null||n.reject(i),i}finally{this.refreshingDeferred=null,this._debug(r,`end`)}}async _notifyAllSubscribers(e,t,n=!0){if(this._pendingInitNotifications!==null&&n){this._pendingInitNotifications.push({event:e,session:t,broadcast:n});return}let r=`#_notifyAllSubscribers(${e})`;this._debug(r,`begin`,t,`broadcast = ${n}`);try{this.broadcastChannel&&n&&this.broadcastChannel.postMessage({event:e,session:t});let r=[],i=Array.from(this.stateChangeEmitters.values()).map(async n=>{try{await n.callback(e,t)}catch(e){r.push(e)}});if(await Promise.all(i),r.length>0){for(let e=0;e<r.length;e+=1)console.error(r[e]);throw r[0]}}finally{this._debug(r,`end`)}}async _saveSession(e){this._debug(`#_saveSession()`,e),this.suppressGetSessionWarning=!0;let t=Object.assign({},e),n=t.user&&t.user.__isUserNotAvailableProxy===!0;if(this.userStorage){!n&&t.user&&await Cr(this.userStorage,this.storageKey+`-user`,{user:t.user});let e=Object.assign({},t);delete e.user;let r=zr(e);await Cr(this.storage,this.storageKey,r)}else{let e=zr(t);await Cr(this.storage,this.storageKey,e)}}async _removeSession(){this._sessionRemovalEpoch+=1,this._debug(`#_removeSession()`),this.lastRefreshFailure=null,this.suppressGetSessionWarning=!1,await U(this.storage,this.storageKey),await U(this.storage,this.storageKey+`-code-verifier`),await U(this.storage,this.storageKey+`-user`),this.userStorage&&await U(this.userStorage,this.storageKey+`-user`),await this._notifyAllSubscribers(`SIGNED_OUT`,null)}_removeVisibilityChangedCallback(){this._debug(`#_removeVisibilityChangedCallback()`);let e=this.visibilityChangedCallback;this.visibilityChangedCallback=null;try{e&&B()&&window!=null&&window.removeEventListener&&window.removeEventListener(`visibilitychange`,e)}catch(e){console.error(`removing visibilitychange callback failed`,e)}}async _startAutoRefresh(){await this._stopAutoRefresh(),this._debug(`#_startAutoRefresh()`);let e=setInterval(()=>this._autoRefreshTokenTick(),M);this.autoRefreshTicker=e,e&&typeof e==`object`&&typeof e.unref==`function`?e.unref():typeof Deno<`u`&&typeof Deno.unrefTimer==`function`&&Deno.unrefTimer(e);let t=setTimeout(async()=>{await this.initializePromise,await this._autoRefreshTokenTick()},0);this.autoRefreshTickTimeout=t,t&&typeof t==`object`&&typeof t.unref==`function`?t.unref():typeof Deno<`u`&&typeof Deno.unrefTimer==`function`&&Deno.unrefTimer(t)}async _stopAutoRefresh(){this._debug(`#_stopAutoRefresh()`);let e=this.autoRefreshTicker;this.autoRefreshTicker=null,e&&clearInterval(e);let t=this.autoRefreshTickTimeout;this.autoRefreshTickTimeout=null,t&&clearTimeout(t)}async startAutoRefresh(){this._removeVisibilityChangedCallback(),await this._startAutoRefresh()}async stopAutoRefresh(){this._removeVisibilityChangedCallback(),await this._stopAutoRefresh()}async dispose(){var e;this._removeVisibilityChangedCallback(),await this._stopAutoRefresh(),(e=this.broadcastChannel)==null||e.close(),this.broadcastChannel=null,this.stateChangeEmitters.clear()}async _autoRefreshTokenTick(){if(this._debug(`#_autoRefreshTokenTick()`,`begin`),this.lock!=null){try{await this._acquireLock(0,async()=>{try{let e=Date.now();try{return await this._useSession(async t=>{let{data:{session:n}}=t;if(!n||!n.refresh_token||!n.expires_at){this._debug(`#_autoRefreshTokenTick()`,`no session`);return}let r=Math.floor((n.expires_at*1e3-e)/M);this._debug(`#_autoRefreshTokenTick()`,`access token expires in ${r} ticks, a tick lasts ${M}ms, refresh threshold is 3 ticks`),r<=3&&await this._callRefreshToken(n.refresh_token)})}catch(e){console.error(`Auto refresh tick failed with error. This is likely a transient error.`,e)}}finally{this._debug(`#_autoRefreshTokenTick()`,`end`)}})}catch(e){if(e instanceof Qr)this._debug(`auto refresh token tick lock not available`);else throw e}return}if(this.refreshingDeferred!==null){this._debug(`#_autoRefreshTokenTick()`,`refresh already in flight, skipping`);return}try{let e=Date.now();try{await this._useSession(async t=>{let{data:{session:n}}=t;if(!n||!n.refresh_token||!n.expires_at){this._debug(`#_autoRefreshTokenTick()`,`no session`);return}let r=Math.floor((n.expires_at*1e3-e)/M);this._debug(`#_autoRefreshTokenTick()`,`access token expires in ${r} ticks, a tick lasts ${M}ms, refresh threshold is 3 ticks`),r<=3&&await this._callRefreshToken(n.refresh_token)})}catch(e){console.error(`Auto refresh tick failed with error. This is likely a transient error.`,e)}}finally{this._debug(`#_autoRefreshTokenTick()`,`end`)}}async _handleVisibilityChange(){if(this._debug(`#_handleVisibilityChange()`),!B()||!(window!=null&&window.addEventListener))return this.autoRefreshToken&&this.startAutoRefresh(),!1;try{this.visibilityChangedCallback=async()=>{try{await this._onVisibilityChanged(!1)}catch(e){this._debug(`#visibilityChangedCallback`,`error`,e)}},window==null||window.addEventListener(`visibilitychange`,this.visibilityChangedCallback),await this._onVisibilityChanged(!0)}catch(e){console.error(`_handleVisibilityChange`,e)}}async _onVisibilityChanged(e){let t=`#_onVisibilityChanged(${e})`;if(this._debug(t,`visibilityState`,document.visibilityState),document.visibilityState===`visible`){if(this.autoRefreshToken&&this._startAutoRefresh(),!e)if(await this.initializePromise,this.lock!=null)await this._acquireLock(this.lockAcquireTimeout,async()=>{if(document.visibilityState!==`visible`){this._debug(t,`acquired the lock to recover the session, but the browser visibilityState is no longer visible, aborting`);return}await this._recoverAndRefresh()});else{if(document.visibilityState!==`visible`){this._debug(t,`visibilityState is no longer visible, skipping recovery`);return}await this._recoverAndRefresh()}}else document.visibilityState===`hidden`&&this.autoRefreshToken&&this._stopAutoRefresh()}async _getUrlForProvider(e,t,n){let r=[`provider=${encodeURIComponent(t)}`];if(n?.redirectTo&&r.push(`redirect_to=${encodeURIComponent(n.redirectTo)}`),n?.scopes&&r.push(`scopes=${encodeURIComponent(n.scopes)}`),this.flowType===`pkce`){let[e,t]=await W(this.storage,this.storageKey),n=new URLSearchParams({code_challenge:`${encodeURIComponent(e)}`,code_challenge_method:`${encodeURIComponent(t)}`});r.push(n.toString())}if(n?.queryParams){let e=new URLSearchParams(n.queryParams);r.push(e.toString())}return n?.skipBrowserRedirect&&r.push(`skip_http_redirect=${n.skipBrowserRedirect}`),`${e}?${r.join(`&`)}`}async _unenroll(e){try{return await this._useSession(async t=>{let{data:n,error:r}=t;return r?this._returnResult({data:null,error:r}):await J(this.fetch,`DELETE`,`${this.url}/factors/${e.factorId}`,{headers:this.headers,jwt:n?.session?.access_token})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _enroll(e){try{return await this._useSession(async t=>{let{data:n,error:r}=t;if(r)return this._returnResult({data:null,error:r});let i=Object.assign({friendly_name:e.friendlyName,factor_type:e.factorType},e.factorType===`phone`?{phone:e.phone}:e.factorType===`totp`?{issuer:e.issuer}:{}),{data:a,error:o}=await J(this.fetch,`POST`,`${this.url}/factors`,{body:i,headers:this.headers,jwt:n?.session?.access_token});return o?this._returnResult({data:null,error:o}):(e.factorType===`totp`&&a.type===`totp`&&a?.totp?.qr_code&&(a.totp.qr_code=`data:image/svg+xml;utf-8,${a.totp.qr_code}`),this._returnResult({data:a,error:null}))})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _verify(e){let t=async()=>{try{return await this._useSession(async t=>{let{data:n,error:r}=t;if(r)return this._returnResult({data:null,error:r});let i=Object.assign({challenge_id:e.challengeId},`webauthn`in e?{webauthn:Object.assign(Object.assign({},e.webauthn),{credential_response:e.webauthn.type===`create`?hi(e.webauthn.credential_response):gi(e.webauthn.credential_response)})}:{code:e.code}),{data:a,error:o}=await J(this.fetch,`POST`,`${this.url}/factors/${e.factorId}/verify`,{body:i,headers:this.headers,jwt:n?.session?.access_token});return o?this._returnResult({data:null,error:o}):(await this._saveSession(Object.assign({expires_at:Math.round(Date.now()/1e3)+a.expires_in},a)),await this._notifyAllSubscribers(`MFA_CHALLENGE_VERIFIED`,a),this._returnResult({data:a,error:o}))})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}};return this.lock==null?t():this._acquireLock(this.lockAcquireTimeout,t)}async _challenge(e){let t=async()=>{try{return await this._useSession(async t=>{let{data:n,error:r}=t;if(r)return this._returnResult({data:null,error:r});let i=await J(this.fetch,`POST`,`${this.url}/factors/${e.factorId}/challenge`,{body:e,headers:this.headers,jwt:n?.session?.access_token});if(i.error)return i;let{data:a}=i;if(a.type!==`webauthn`)return{data:a,error:null};switch(a.webauthn.type){case`create`:return{data:Object.assign(Object.assign({},a),{webauthn:Object.assign(Object.assign({},a.webauthn),{credential_options:Object.assign(Object.assign({},a.webauthn.credential_options),{publicKey:pi(a.webauthn.credential_options.publicKey)})})}),error:null};case`request`:return{data:Object.assign(Object.assign({},a),{webauthn:Object.assign(Object.assign({},a.webauthn),{credential_options:Object.assign(Object.assign({},a.webauthn.credential_options),{publicKey:mi(a.webauthn.credential_options.publicKey)})})}),error:null}}})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}};return this.lock==null?t():this._acquireLock(this.lockAcquireTimeout,t)}async _challengeAndVerify(e){let{data:t,error:n}=await this._challenge({factorId:e.factorId});return n?this._returnResult({data:null,error:n}):await this._verify({factorId:e.factorId,challengeId:t.id,code:e.code})}async _listFactors(){let{data:{user:e},error:t}=await this.getUser();if(t)return{data:null,error:t};let n={all:[],phone:[],totp:[],webauthn:[]};for(let t of e?.factors??[])n.all.push(t),t.status===`verified`&&n[t.factor_type].push(t);return{data:n,error:null}}async _getAuthenticatorAssuranceLevel(e){if(e)try{let{payload:t}=Tr(e),n=null;t.aal&&(n=t.aal);let r=n,{data:{user:i},error:a}=await this.getUser(e);if(a)return this._returnResult({data:null,error:a});((i?.factors)?.filter(e=>e.status===`verified`)??[]).length>0&&(r=`aal2`);let o=t.amr||[];return{data:{currentLevel:n,nextLevel:r,currentAuthenticationMethods:o},error:null}}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}let{data:{session:t},error:n}=await this.getSession();if(n)return this._returnResult({data:null,error:n});if(!t)return{data:{currentLevel:null,nextLevel:null,currentAuthenticationMethods:[]},error:null};let{payload:r}=Tr(t.access_token),i=null;r.aal&&(i=r.aal);let a=i;(t.user.factors?.filter(e=>e.status===`verified`)??[]).length>0&&(a=`aal2`);let o=r.amr||[];return{data:{currentLevel:i,nextLevel:a,currentAuthenticationMethods:o},error:null}}async _getAuthorizationDetails(e){try{return await this._useSession(async t=>{let{data:{session:n},error:r}=t;return r?this._returnResult({data:null,error:r}):n?await J(this.fetch,`GET`,`${this.url}/oauth/authorizations/${e}`,{headers:this.headers,jwt:n.access_token,xform:e=>({data:e,error:null})}):this._returnResult({data:null,error:new L})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _approveAuthorization(e,t){try{return await this._useSession(async n=>{let{data:{session:r},error:i}=n;if(i)return this._returnResult({data:null,error:i});if(!r)return this._returnResult({data:null,error:new L});let a=await J(this.fetch,`POST`,`${this.url}/oauth/authorizations/${e}/consent`,{headers:this.headers,jwt:r.access_token,body:{action:`approve`},xform:e=>({data:e,error:null})});return a.data&&a.data.redirect_url&&B()&&!t?.skipBrowserRedirect&&window.location.assign(a.data.redirect_url),a})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _denyAuthorization(e,t){try{return await this._useSession(async n=>{let{data:{session:r},error:i}=n;if(i)return this._returnResult({data:null,error:i});if(!r)return this._returnResult({data:null,error:new L});let a=await J(this.fetch,`POST`,`${this.url}/oauth/authorizations/${e}/consent`,{headers:this.headers,jwt:r.access_token,body:{action:`deny`},xform:e=>({data:e,error:null})});return a.data&&a.data.redirect_url&&B()&&!t?.skipBrowserRedirect&&window.location.assign(a.data.redirect_url),a})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _listOAuthGrants(){try{return await this._useSession(async e=>{let{data:{session:t},error:n}=e;return n?this._returnResult({data:null,error:n}):t?await J(this.fetch,`GET`,`${this.url}/user/oauth/grants`,{headers:this.headers,jwt:t.access_token,xform:e=>({data:e,error:null})}):this._returnResult({data:null,error:new L})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _revokeOAuthGrant(e){try{return await this._useSession(async t=>{let{data:{session:n},error:r}=t;return r?this._returnResult({data:null,error:r}):n?(await J(this.fetch,`DELETE`,`${this.url}/user/oauth/grants`,{headers:this.headers,jwt:n.access_token,query:{client_id:e.clientId},noResolveJson:!0}),{data:{},error:null}):this._returnResult({data:null,error:new L})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async fetchJwk(e,t={keys:[]}){let n=t.keys.find(t=>t.kid===e);if(n)return n;let r=Date.now();if(n=this.jwks.keys.find(t=>t.kid===e),n&&this.jwks_cached_at+6e5>r)return n;let{data:i,error:a}=await J(this.fetch,`GET`,`${this.url}/.well-known/jwks.json`,{headers:this.headers});if(a)throw a;return!i.keys||i.keys.length===0||(this.jwks=i,this.jwks_cached_at=r,n=i.keys.find(t=>t.kid===e),!n)?null:n}async getClaims(e,t={}){try{let n=e;if(!n){let{data:e,error:t}=await this.getSession();if(t||!e.session)return this._returnResult({data:null,error:t});n=e.session.access_token}let{header:r,payload:i,signature:a,raw:{header:o,payload:s}}=Tr(n);if(!t?.allowExpired)try{Pr(i.exp)}catch(e){throw new ar(e instanceof Error?e.message:`JWT validation failed`)}let c=!r.alg||r.alg.startsWith(`HS`)||!r.kid||!(`crypto`in globalThis&&`subtle`in globalThis.crypto)?null:await this.fetchJwk(r.kid,t?.keys?{keys:t.keys}:t?.jwks);if(!c){let{error:e}=await this.getUser(n);if(e)throw e;return{data:{claims:i,header:r,signature:a},error:null}}let l=Fr(r.alg),u=await crypto.subtle.importKey(`jwk`,c,l,!0,[`verify`]);if(!await crypto.subtle.verify(l,u,a,gr(`${o}.${s}`)))throw new ar(`Invalid JWT signature`);return{data:{claims:i,header:r,signature:a},error:null}}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async signInWithPasskey(e){K(this.experimental);try{if(!vi())return this._returnResult({data:null,error:new F(`Browser does not support WebAuthn`,null)});let{data:t,error:n}=await this._startPasskeyAuthentication({options:{captchaToken:e?.options?.captchaToken}});if(n||!t)return this._returnResult({data:null,error:n});let{data:r,error:i}=await bi({publicKey:mi(t.options),signal:e?.options?.signal??fi.createNewAbortSignal()});if(i||!r)return this._returnResult({data:null,error:i??new F(`WebAuthn ceremony failed`,null)});let a=gi(r);return this._verifyPasskeyAuthentication({challengeId:t.challenge_id,credential:a})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async registerPasskey(e){K(this.experimental);try{if(!vi())return this._returnResult({data:null,error:new F(`Browser does not support WebAuthn`,null)});let{data:t,error:n}=await this._startPasskeyRegistration();if(n||!t)return this._returnResult({data:null,error:n});let{data:r,error:i}=await yi({publicKey:pi(t.options),signal:e?.options?.signal??fi.createNewAbortSignal()});if(i||!r)return this._returnResult({data:null,error:i??new F(`WebAuthn ceremony failed`,null)});let a=hi(r);return this._verifyPasskeyRegistration({challengeId:t.challenge_id,credential:a})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _startPasskeyRegistration(){K(this.experimental);try{return await this._useSession(async e=>{let{data:{session:t},error:n}=e;if(n)return this._returnResult({data:null,error:n});if(!t)return this._returnResult({data:null,error:new L});let{data:r,error:i}=await J(this.fetch,`POST`,`${this.url}/passkeys/registration/options`,{headers:this.headers,jwt:t.access_token,body:{}});return i?this._returnResult({data:null,error:i}):this._returnResult({data:r,error:null})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _verifyPasskeyRegistration(e){K(this.experimental);try{return await this._useSession(async t=>{let{data:{session:n},error:r}=t;if(r)return this._returnResult({data:null,error:r});if(!n)return this._returnResult({data:null,error:new L});let{data:i,error:a}=await J(this.fetch,`POST`,`${this.url}/passkeys/registration/verify`,{headers:this.headers,jwt:n.access_token,body:{challenge_id:e.challengeId,credential:e.credential}});return a?this._returnResult({data:null,error:a}):this._returnResult({data:i,error:null})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _startPasskeyAuthentication(e){K(this.experimental);try{let{data:t,error:n}=await J(this.fetch,`POST`,`${this.url}/passkeys/authentication/options`,{headers:this.headers,body:{gotrue_meta_security:{captcha_token:e?.options?.captchaToken}}});return n?this._returnResult({data:null,error:n}):this._returnResult({data:t,error:null})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _verifyPasskeyAuthentication(e){K(this.experimental);try{let{data:t,error:n}=await J(this.fetch,`POST`,`${this.url}/passkeys/authentication/verify`,{headers:this.headers,body:{challenge_id:e.challengeId,credential:e.credential},xform:Y});return n?this._returnResult({data:null,error:n}):(t.session&&(await this._saveSession(t.session),await this._notifyAllSubscribers(`SIGNED_IN`,t.session)),this._returnResult({data:t,error:null}))}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _listPasskeys(){K(this.experimental);try{return await this._useSession(async e=>{let{data:{session:t},error:n}=e;if(n)return this._returnResult({data:null,error:n});if(!t)return this._returnResult({data:null,error:new L});let{data:r,error:i}=await J(this.fetch,`GET`,`${this.url}/passkeys`,{headers:this.headers,jwt:t.access_token,xform:e=>({data:e,error:null})});return i?this._returnResult({data:null,error:i}):this._returnResult({data:r,error:null})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _updatePasskey(e){K(this.experimental);try{return await this._useSession(async t=>{let{data:{session:n},error:r}=t;if(r)return this._returnResult({data:null,error:r});if(!n)return this._returnResult({data:null,error:new L});let{data:i,error:a}=await J(this.fetch,`PATCH`,`${this.url}/passkeys/${e.passkeyId}`,{headers:this.headers,jwt:n.access_token,body:{friendly_name:e.friendlyName}});return a?this._returnResult({data:null,error:a}):this._returnResult({data:i,error:null})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}async _deletePasskey(e){K(this.experimental);try{return await this._useSession(async t=>{let{data:{session:n},error:r}=t;if(r)return this._returnResult({data:null,error:r});if(!n)return this._returnResult({data:null,error:new L});let{error:i}=await J(this.fetch,`DELETE`,`${this.url}/passkeys/${e.passkeyId}`,{headers:this.headers,jwt:n.access_token,noResolveJson:!0});return i?this._returnResult({data:null,error:i}):this._returnResult({data:null,error:null})})}catch(e){if(P(e))return this._returnResult({data:null,error:e});throw e}}};Oi.nextInstanceID={};var ki=Oi,Ai=Xr,ji=ki,Mi=class extends ji{constructor(e){super(e)}},Ni=class{constructor(e,t,n){this.supabaseUrl=e,this.supabaseKey=t;let r=Ln(e);if(!t)throw Error(`supabaseKey is required.`);jn(t),this.realtimeUrl=new URL(`realtime/v1`,r),this.realtimeUrl.protocol=this.realtimeUrl.protocol.replace(`http`,`ws`),this.authUrl=new URL(`auth/v1`,r),this.storageUrl=new URL(`storage/v1`,r),this.functionsUrl=new URL(`functions/v1`,r);let i=`sb-${r.hostname.split(`.`)[0]}-auth-token`,a={db:gn,realtime:vn,auth:{..._n,storageKey:i},global:hn,tracePropagation:yn},o=In(n??{},a);this.settings=o,this.storageKey=o.auth.storageKey??``,this.headers=o.global.headers??{},o.accessToken?(this.accessToken=o.accessToken,this.auth=new Proxy({},{get:(e,t)=>{throw Error(`@supabase/supabase-js: Supabase Client is configured with the accessToken option, accessing supabase.auth.${String(t)} is not possible`)}})):this.auth=this._initSupabaseAuthClient(o.auth??{},this.headers,o.global.fetch),this.fetch=Mn(t,e,this._getSessionToken.bind(this),o.global.fetch,o.tracePropagation),this.functionsFetch=Mn(t,e,this._getSessionToken.bind(this),o.global.fetch,o.tracePropagation,{omitApiKeyAsBearer:!0}),this.realtime=this._initRealtimeClient({headers:this.headers,accessToken:this._getAccessToken.bind(this),fetch:this.fetch,...o.realtime}),this.accessToken&&Promise.resolve(this.accessToken()).then(e=>this.realtime.setAuth(e)).catch(e=>console.warn(`Failed to set initial Realtime auth token:`,e)),this.rest=new ce(new URL(`rest/v1`,r).href,{headers:this.headers,schema:o.db.schema,fetch:this.fetch,timeout:o.db.timeout,urlLengthLimit:o.db.urlLengthLimit}),this.storage=new dn(this.storageUrl.href,this.headers,this.fetch,n?.storage),o.accessToken||this._listenForAuthEvents()}get functions(){return new l(this.functionsUrl.href,{headers:this.headers,customFetch:this.functionsFetch})}from(e){return this.rest.from(e)}schema(e){return this.rest.schema(e)}rpc(e,t={},n={head:!1,get:!1,count:void 0}){return this.rest.rpc(e,t,n)}channel(e,t={config:{}}){return this.realtime.channel(e,t)}getChannels(){return this.realtime.getChannels()}removeChannel(e){return this.realtime.removeChannel(e)}removeAllChannels(){return this.realtime.removeAllChannels()}async _getSessionToken(){if(this.accessToken)return await this.accessToken();let{data:e}=await this.auth.getSession();return e.session?.access_token??null}async _getAccessToken(){return await this._getSessionToken()??this.supabaseKey}_initSupabaseAuthClient({autoRefreshToken:e,persistSession:t,detectSessionInUrl:n,storage:r,userStorage:i,storageKey:a,flowType:o,lock:s,debug:c,throwOnError:l,experimental:u,lockAcquireTimeout:d,skipAutoInitialize:f},p,m){let h={Authorization:`Bearer ${this.supabaseKey}`,apikey:`${this.supabaseKey}`};return new Mi({url:this.authUrl.href,headers:{...h,...p},storageKey:a,autoRefreshToken:e,persistSession:t,detectSessionInUrl:n,storage:r,userStorage:i,flowType:o,lock:s,debug:c,throwOnError:l,experimental:u,fetch:m,lockAcquireTimeout:d,skipAutoInitialize:f,hasCustomAuthorizationHeader:Object.keys(this.headers).some(e=>e.toLowerCase()===`authorization`)})}_initRealtimeClient(e){return new pt(this.realtimeUrl.href,{...e,params:{apikey:this.supabaseKey,...e?.params}})}_listenForAuthEvents(){return this.auth.onAuthStateChange((e,t)=>{this._handleTokenChanged(e,`CLIENT`,t?.access_token)})}_handleTokenChanged(e,t,n){(e===`TOKEN_REFRESHED`||e===`SIGNED_IN`||e===`INITIAL_SESSION`)&&this.changedAccessToken!==n?(this.changedAccessToken=n,this.realtime.setAuth(n)):e===`SIGNED_OUT`&&(this.realtime.setAuth(),t==`STORAGE`&&this.auth.signOut(),this.changedAccessToken=void 0)}};let Pi=(e,t,n)=>new Ni(e,t,n);function Fi(){if(typeof window<`u`||globalThis.Deno!==void 0)return!1;let e=globalThis.process;if(!e)return!1;let t=e.version;if(t==null)return!1;let n=t.match(/^v(\d+)\./);return n?parseInt(n[1],10)<=20:!1}return Fi()&&console.warn(`⚠️  Node.js 20 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 22 or later. For more information, visit: https://github.com/orgs/supabase/discussions/45715`),e.AuthAdminApi=Ai,e.AuthApiError=Wn,e.AuthClient=ji,e.AuthError=N,e.AuthImplicitGrantRedirectError=Jn,e.AuthInvalidCredentialsError=qn,e.AuthInvalidJwtError=ar,e.AuthInvalidTokenResponseError=R,e.AuthPKCECodeVerifierMissingError=Zn,e.AuthPKCEGrantCodeExchangeError=Xn,e.AuthRefreshDiscardedError=tr,e.AuthRetryableFetchError=$n,e.AuthSessionMissingError=L,e.AuthUnknownError=F,e.AuthWeakPasswordError=rr,e.CustomAuthError=I,Object.defineProperty(e,`FunctionRegion`,{enumerable:!0,get:function(){return c}}),e.FunctionsError=i,e.FunctionsFetchError=a,e.FunctionsHttpError=s,e.FunctionsRelayError=o,e.GoTrueAdminApi=Xr,e.GoTrueClient=ki,e.NavigatorLockAcquireTimeoutError=$r,e.PostgrestError=p,e.REALTIME_CHANNEL_STATES=ot,Object.defineProperty(e,`REALTIME_LISTEN_TYPES`,{enumerable:!0,get:function(){return E}}),Object.defineProperty(e,`REALTIME_POSTGRES_CHANGES_LISTEN_EVENT`,{enumerable:!0,get:function(){return at}}),Object.defineProperty(e,`REALTIME_PRESENCE_LISTEN_EVENTS`,{enumerable:!0,get:function(){return Ke}}),Object.defineProperty(e,`REALTIME_SUBSCRIBE_STATES`,{enumerable:!0,get:function(){return D}}),e.RealtimeChannel=st,e.RealtimeClient=pt,e.RealtimePostgresFilterBuilder=rt,e.RealtimePresence=qe,e.SIGN_OUT_SCOPES=Yr,e.StorageApiError=At,e.SupabaseClient=Ni,e.WebSocketFactory=le,e.createClient=Pi,e.isAuthApiError=Gn,e.isAuthError=P,e.isAuthImplicitGrantRedirectError=Yn,e.isAuthPKCECodeVerifierMissingError=Qn,e.isAuthRefreshDiscardedError=nr,e.isAuthRetryableFetchError=er,e.isAuthSessionMissingError=Kn,e.isAuthWeakPasswordError=ir,e.lockInternals=Z,e.navigatorLock=ti,e.postgresChangesFilter=it,e.processLock=ri,e})({});
 </script>
+
 <script>
 /* ============================================================
    Wreheapp — мессенджер на Supabase
-   Таблицы: users, chats, messages, invites, parts, signals
-   Файлы:   bucket "media" (лежат зашифрованными)
-   Шифрование: ECDH P-256 -> AES-GCM-256, ключи только на устройстве
+   Данные:   profiles / chats / messages  + хранилище "media"
+   Звонки:   Realtime broadcast + presence (без записи в базу)
+   Шифрование: ECDH P-256 -> AES-GCM 256, ключи не покидают устройство
    ============================================================ */
 
 const SUPA_URL = 'https://zvdwimgmbxhvvdnmjuag.supabase.co';
 const SUPA_KEY = 'sb_publishable_0FbeQ-Y9mtRqlKHmKRXrHw_RjI-EHa1';
 
-const MAX_FILE   = 20 * 1024 * 1024;      // 20 МБ на файл
-const IMG_TARGET = 1.4 * 1024 * 1024;     // цель сжатия фото
-const LIMIT_MSG  = 'Извините, файл слишком большой — сожмите его (лимит 20 МБ). Зато звонить можно!!';
+const MAX_FILE   = 20 * 1024 * 1024;    // 20 МБ на файл
+const IMG_TARGET = 1.5 * 1024 * 1024;   // цель сжатия фото
+const LIMIT_MSG  = 'Извините, но сайт имеет бесплатную базу данных, сожмите файл (лимит 20 МБ). Зато звонить можно!!';
 const ICE = { iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302','stun:global.stun.twilio.com:3478']}], iceCandidatePoolSize:4 };
 
-/* ---------- хранилище устройства ---------- */
+/* ---------- хранилище настроек ---------- */
 const mem = {};
 const S = {
   get(k){ try{ return localStorage.getItem(k); }catch(e){ return k in mem ? mem[k] : null; } },
-  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){ mem[k]=v; } }
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){ mem[k]=v; } },
+  del(k){ try{ localStorage.removeItem(k); }catch(e){ delete mem[k]; } }
 };
 
 /* ---------- утилиты ---------- */
@@ -285,20 +286,20 @@ function unb64(s){ const bin=atob(s); const a=new Uint8Array(bin.length); for(le
 function rid(n=20){ const c='abcdefghijklmnopqrstuvwxyz0123456789'; let s=''; const r=crypto.getRandomValues(new Uint8Array(n)); for(let i=0;i<n;i++)s+=c[r[i]%c.length]; return s; }
 function code10(){ const r=crypto.getRandomValues(new Uint32Array(10)); return Array.from(r,v=>v%10).join(''); }
 function hue(s){ let h=0; for(const ch of String(s)) h=(h*31+ch.charCodeAt(0))%360; return h; }
-function initials(n){ const p=String(n||'?').trim().split(/\s+/); return ((p[0]?.[0]||'?')+(p[1]?.[0]||'')).toUpperCase(); }
-function hhmm(ts){ const d=new Date(ts); return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0'); }
+function initials(n){ const p=String(n||'?').trim().split(/\s+/); return ((p[0]&&p[0][0])||'?').toUpperCase()+((p[1]&&p[1][0])||'').toUpperCase(); }
+function hhmm(ts){ const d=new Date(ts); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
 function dayLabel(ts){ const d=new Date(ts),n=new Date(); const same=(a,b)=>a.toDateString()===b.toDateString();
-  if(same(d,n))return 'Сегодня'; const y=new Date(n-864e5); if(same(d,y))return 'Вчера';
+  if(same(d,n))return 'Сегодня'; if(same(d,new Date(n-864e5)))return 'Вчера';
   return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'}); }
 function sizeStr(b){ return b<1024?b+' Б':b<1048576?(b/1024).toFixed(0)+' КБ':(b/1048576).toFixed(2)+' МБ'; }
 function mmss(s){ return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0'); }
 let toastT;
 function toast(text, ms=4200){
-  clearTimeout(toastT); document.querySelector('.toast')?.remove();
+  clearTimeout(toastT); const old=document.querySelector('.toast'); if(old) old.remove();
   const t=el('div','toast',text); document.body.appendChild(t);
   toastT=setTimeout(()=>t.remove(), ms);
 }
-function progress(p){ const b=$('#prog'); if(b) b.style.width=(p*100)+'%'; }
+const setProg=p=>{ const n=$('#prog'); if(n) n.style.width=(p*100)+'%'; };
 
 /* ---------- шифрование ---------- */
 let myPriv=null;
@@ -320,33 +321,33 @@ async function encBytes(key,bytes){
 async function decBytes(key,o){
   return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(o.iv)},key,unb64(o.ct)));
 }
+async function encRaw(key,bytes){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const buf=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes);
+  return { buf, iv:b64(iv) };
+}
+const decRaw = (key,buf,iv)=>crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(iv)},key,buf);
 const encText = (k,s)=>encBytes(k,new TextEncoder().encode(s));
 const decText = async(k,o)=>new TextDecoder().decode(await decBytes(k,o));
-/* для файлов: шифруем сырые байты, отдаём Blob и iv отдельно */
-async function encFile(key,bytes){
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes);
-  return { blob:new Blob([ct]), iv:b64(iv) };
-}
-async function decFile(key,buf,ivB64){
-  return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(ivB64)},key,buf));
-}
 
 /* ---------- состояние ---------- */
 let sb, me={uid:null,name:'',code:'',pub:''};
 const chats=new Map(), profiles=new Map(), keyCache=new Map(), msgCache=new Map(), blobUrls=new Map();
-let curChat=null, chMsgs=null, chChats=null, chInvites=null;
+let curChat=null, msgChan=null, userChan=null;
 const seenAt = JSON.parse(S.get('wa_seen')||'{}');
 
-/* ============================================================ */
+/* ============================================================
+   СТАРТ
+   ============================================================ */
 (async function boot(){
   const sub=$('#gateSub');
-  sub.textContent='Подключаемся к базе…';
-  if(!window.supabase?.createClient){ sub.textContent='Библиотека Supabase не загрузилась. Обновите страницу.'; return; }
+  if(!window.supabase){ sub.textContent='Библиотека Supabase не загрузилась. Обновите страницу.'; return; }
+  if(!window.isSecureContext){ sub.textContent='Откройте сайт по https:// — иначе браузер запретит шифрование, камеру и микрофон.'; return; }
 
-  sb = supabase.createClient(SUPA_URL, SUPA_KEY, {
-    auth:{persistSession:false},
-    realtime:{params:{eventsPerSecond:25}}
+  sub.textContent='Подключаемся к базе…';
+  sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+    auth:{ persistSession:false, autoRefreshToken:false },
+    realtime:{ params:{ eventsPerSecond:30 } }
   });
 
   let uid=S.get('wa_uid');
@@ -357,25 +358,22 @@ const seenAt = JSON.parse(S.get('wa_seen')||'{}');
   if(!jwk){ const k=await makeKeys(); S.set('wa_priv',k.jwk); S.set('wa_pub',k.pub); jwk=k.jwk; }
   me.pub=S.get('wa_pub'); myPriv=await loadPriv(jwk);
 
-  const slow=setTimeout(()=>sub.textContent='База долго не отвечает. Проверьте соединение.',12000);
-  let row,err;
-  try{
-    const r=await Promise.race([
-      sb.from('users').select('*').eq('id',uid).maybeSingle(),
-      new Promise(res=>setTimeout(()=>res({error:{message:'нет ответа за 25 секунд'}}),25000))
-    ]);
-    row=r.data; err=r.error;
-  }catch(e){ err=e; }
+  const slow=setTimeout(()=>sub.textContent='База отвечает медленно… ждём.',10000);
+  const { data, error } = await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
   clearTimeout(slow);
-  if(err){ sub.innerHTML='Не удалось подключиться к базе.<br><small style="opacity:.7">'+esc(err.message||err)+'</small>'; return; }
 
-  if(row && row.pub===me.pub){
-    me.name=row.name; me.code=row.code; S.set('wa_code',row.code);
+  if(error){
+    sub.innerHTML='Не удалось подключиться к базе.<br><small style="opacity:.75">'+esc(error.message)+'</small>'
+      +'<br><small style="opacity:.75">Проверьте, что SQL-скрипт выполнен в Supabase.</small>';
+    return;
+  }
+  if(data && data.pub===me.pub){
+    me.name=data.name; me.code=data.code; S.set('wa_code',data.code);
     startApp();
   }else{
     sub.textContent='Представьтесь — и можно общаться.';
     $('#gateForm').classList.remove('hidden');
-    $('#nameInput').value = row?.name || '';
+    $('#nameInput').value = data ? (data.name||'') : '';
     $('#nameInput').focus();
   }
 })();
@@ -389,23 +387,23 @@ $('#startBtn').onclick = async ()=>{
     if(!code){
       for(let i=0;i<6;i++){
         const c=code10();
-        const {data}=await sb.from('users').select('id').eq('code',c).maybeSingle();
+        const {data}=await sb.from('profiles').select('id').eq('code',c).maybeSingle();
         if(!data){ code=c; break; }
       }
       code=code||code10();
     }
-    const {error}=await sb.from('users').upsert({id:me.uid,name,code,pub:me.pub,last_seen:Date.now()});
+    const {error}=await sb.from('profiles').upsert({id:me.uid,name,code,pub:me.pub,last_seen:Date.now()});
     if(error) throw error;
     S.set('wa_code',code); me.name=name; me.code=code;
     startApp();
   }catch(e){
     btn.disabled=false; btn.textContent='Войти в Wreheapp';
-    toast('Не получилось сохранить профиль: '+(e.message||e));
+    toast('Не получилось сохранить профиль: '+e.message);
   }
 };
 $('#nameInput').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#startBtn').click(); });
 
-/* --- перенос профиля --- */
+/* --- перенос профиля между устройствами --- */
 function profileKey(){
   return 'WRHE1:'+btoa(unescape(encodeURIComponent(JSON.stringify({
     u:S.get('wa_uid'), c:S.get('wa_code'), n:me.name, k:S.get('wa_priv'), p:S.get('wa_pub')
@@ -414,7 +412,7 @@ function profileKey(){
 $('#showRestore').onclick=()=>{ $('#restoreBox').classList.toggle('hidden'); $('#restoreKey').focus(); };
 $('#restoreGo').onclick=()=>{
   const raw=$('#restoreKey').value.trim();
-  if(!raw.startsWith('WRHE1:')) return toast('Ключ должен начинаться с WRHE1:');
+  if(raw.indexOf('WRHE1:')!==0) return toast('Ключ должен начинаться с WRHE1:');
   try{
     const d=JSON.parse(decodeURIComponent(escape(atob(raw.slice(6)))));
     if(!d.u||!d.k||!d.p) throw new Error('в ключе не хватает данных');
@@ -427,8 +425,8 @@ function startApp(){
   $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#myCode').textContent = me.code.replace(/(\d{3})(\d{3})(\d{4})/,'$1 $2 $3');
   profiles.set(me.uid,{name:me.name,pub:me.pub,code:me.code});
-  loadChats(); watchChats(); watchInvites();
-  setInterval(()=>sb.from('users').update({last_seen:Date.now()}).eq('id',me.uid).then(()=>{}), 45000);
+  loadChats(); watchChats(); watchCalls();
+  setInterval(()=>sb.from('profiles').update({last_seen:Date.now()}).eq('id',me.uid).then(()=>{},()=>{}), 45000);
 }
 
 /* ============================================================
@@ -436,80 +434,83 @@ function startApp(){
    ============================================================ */
 async function getProfile(uid){
   if(profiles.has(uid)) return profiles.get(uid);
-  const {data}=await sb.from('users').select('*').eq('id',uid).maybeSingle();
+  const {data}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
   const p=data||{name:'Неизвестный',pub:null};
-  profiles.set(uid,p);
-  return p;
-}
-async function refreshProfiles(ids){
-  const need=[...new Set(ids)].filter(u=>u&&u!==me.uid);
-  if(!need.length) return;
-  const {data}=await sb.from('users').select('*').in('id',need);
-  (data||[]).forEach(p=>profiles.set(p.id,p));
+  profiles.set(uid,p); return p;
 }
 
 /* ============================================================
    ЧАТЫ
    ============================================================ */
+const normChat = r => ({id:r.id, type:r.type, name:r.name, owner:r.owner, members:r.members||[],
+                        gkeys:r.gkeys||{}, last:r.last, updatedAt:Number(r.updated_at)||0});
+
 async function loadChats(){
   const {data,error}=await sb.from('chats').select('*').contains('members',[me.uid]);
-  if(error) return toast('Ошибка загрузки чатов: '+error.message);
-  chats.clear(); (data||[]).forEach(c=>chats.set(c.id,c));
-  await refreshProfiles([...chats.values()].flatMap(c=>c.members));
+  if(error){ toast('Ошибка загрузки чатов: '+error.message); return; }
+  for(const r of data) chats.set(r.id, normChat(r));
+  const need=new Set(); chats.forEach(c=>c.members.forEach(u=>{ if(u!==me.uid) need.add(u); }));
+  await Promise.all([...need].map(getProfile));
   renderChatList();
 }
 function watchChats(){
-  chChats = sb.channel('chats-all')
-    .on('postgres_changes',{event:'*',schema:'public',table:'chats'},async payload=>{
-      const c=payload.new;
-      if(!c || !c.members?.includes(me.uid)){ if(payload.old?.id) chats.delete(payload.old.id); renderChatList(); return; }
-      chats.set(c.id,c);
-      await refreshProfiles(c.members);
+  sb.channel('chats-feed')
+    .on('postgres_changes',{event:'*',schema:'public',table:'chats'}, async ({eventType,new:row,old})=>{
+      if(eventType==='DELETE'){ chats.delete(old.id); return renderChatList(); }
+      if(!row.members || row.members.indexOf(me.uid)<0){ chats.delete(row.id); return renderChatList(); }
+      const wasNew=!chats.has(row.id);
+      chats.set(row.id, normChat(row));
+      if(wasNew) await Promise.all(row.members.filter(u=>u!==me.uid).map(getProfile));
+      keyCache.delete(row.id);
       renderChatList();
-      if(curChat===c.id) paintHeader();
-    })
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'users'},payload=>{
-      if(payload.new) { profiles.set(payload.new.id,payload.new); renderChatList(); if(curChat) paintHeader(); }
-    })
-    .subscribe();
+      if(curChat===row.id) paintHeader();
+    }).subscribe();
 }
+
 function chatTitle(c){
-  if(c.kind==='group') return c.name||'Группа';
+  if(c.type==='group') return c.name||'Группа';
   const other=c.members.find(u=>u!==me.uid);
-  return profiles.get(other)?.name || 'Собеседник';
+  const p=profiles.get(other);
+  return (p&&p.name)||'Собеседник';
 }
 async function chatKey(c){
   if(keyCache.has(c.id)) return keyCache.get(c.id);
   let k;
-  if(c.kind==='group'){
+  if(c.type==='group'){
     const w=(c.gkeys||{})[me.uid];
     if(!w) throw new Error('нет ключа группы');
     const wrapper=await getProfile(w.by);
-    const raw=await decBytes(await sharedKey(w.by===me.uid?me.pub:wrapper.pub), w);
+    const raw=await decBytes(await sharedKey(wrapper.pub), w);
     k=await crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt','decrypt']);
   }else{
-    const other=c.members.find(u=>u!==me.uid);
-    const p=await getProfile(other);
+    const p=await getProfile(c.members.find(u=>u!==me.uid));
     if(!p.pub) throw new Error('у собеседника нет ключа');
     k=await sharedKey(p.pub);
   }
   keyCache.set(c.id,k); return k;
 }
+async function groupRawKey(c){
+  const w=c.gkeys[me.uid];
+  if(!w) throw new Error('нет ключа группы');
+  const wrapper=await getProfile(w.by);
+  return decBytes(await sharedKey(wrapper.pub), w);
+}
+
 function renderChatList(){
   const q=$('#searchInput').value.trim().toLowerCase();
-  const list=[...chats.values()].sort((a,b)=>(b.updated_at||0)-(a.updated_at||0))
-    .filter(c=>!q || chatTitle(c).toLowerCase().includes(q));
+  const list=[...chats.values()].sort((a,b)=>b.updatedAt-a.updatedAt)
+    .filter(c=>!q || chatTitle(c).toLowerCase().indexOf(q)>=0);
   const box=$('#chatList'); box.innerHTML='';
   if(!list.length){ box.innerHTML='<div class="empty">Пока пусто.<br>Добавьте контакт по 10-значному коду.</div>'; return; }
   for(const c of list){
     const t=chatTitle(c), row=el('div','row'+(curChat===c.id?' on':''));
-    const av=el('div','av',c.kind==='group'?'👥':initials(t));
-    av.style.background=`hsl(${hue(c.id)} 55% 52%)`;
+    const av=el('div','av',c.type==='group'?'👥':initials(t));
+    av.style.background='hsl('+hue(c.id)+' 55% 52%)';
     const b=el('div','row-b');
-    const top=el('div','row-t'); top.append(el('b',null,t), el('i',null,c.updated_at?hhmm(c.updated_at):''));
+    const top=el('div','row-t'); top.append(el('b',null,t), el('i',null,c.updatedAt?hhmm(c.updatedAt):''));
     const prev=el('div','row-p','…');
     b.append(top,prev); row.append(av,b);
-    if(c.updated_at && c.updated_at>(seenAt[c.id]||0) && c.last?.from!==me.uid) row.append(el('div','badge','●'));
+    if(c.updatedAt>(seenAt[c.id]||0) && c.last && c.last.from!==me.uid) row.append(el('div','badge','●'));
     row.onclick=()=>openChat(c.id);
     box.appendChild(row);
     previewText(c).then(s=>prev.textContent=s);
@@ -517,8 +518,8 @@ function renderChatList(){
 }
 async function previewText(c){
   if(!c.last) return 'Чат создан';
-  const who = c.last.from===me.uid?'Вы: ' : (c.kind==='group'? (profiles.get(c.last.from)?.name||'')+': ' : '');
-  const icons={image:'📷 Фото',video:'🎬 Видео',audio:'🎤 Голосовое',file:'📎 Файл'};
+  const who = c.last.from===me.uid?'Вы: ' : (c.type==='group'? ((profiles.get(c.last.from)||{}).name||'')+': ' : '');
+  const icons={image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео'};
   if(c.last.kind!=='text') return who+(icons[c.last.kind]||'Сообщение');
   try{ return who+await decText(await chatKey(c), c.last); }catch(e){ return who+'🔒 зашифровано'; }
 }
@@ -526,6 +527,9 @@ async function previewText(c){
 /* ============================================================
    СООБЩЕНИЯ
    ============================================================ */
+const normMsg = r => ({id:r.id, from:r.from_uid, ts:Number(r.ts), kind:r.kind, ct:r.ct, iv:r.iv,
+                       plain:r.plain, meta:r.meta, blob:r.blob});
+
 async function openChat(id){
   curChat=id; const c=chats.get(id); if(!c) return;
   seenAt[id]=Date.now(); S.set('wa_seen',JSON.stringify(seenAt));
@@ -537,40 +541,37 @@ async function openChat(id){
   if(!msgCache.has(id)) msgCache.set(id,new Map());
 
   const {data,error}=await sb.from('messages').select('*').eq('chat_id',id).order('ts',{ascending:false}).limit(150);
-  if(error) return toast('Ошибка: '+error.message);
-  if(curChat!==id) return;
-  await absorb(id,(data||[]).reverse());
+  if(error){ $('#msgs').innerHTML='<div class="empty">Ошибка: '+esc(error.message)+'</div>'; return; }
+  await absorb(id, data.reverse());
   renderMsgs(id);
 
-  if(chMsgs) sb.removeChannel(chMsgs);
-  chMsgs = sb.channel('msgs-'+id)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'chat_id=eq.'+id},async payload=>{
-      if(curChat!==id) return;
-      await absorb(id,[payload.new]);
-      renderMsgs(id);
-    }).subscribe();
+  if(msgChan) sb.removeChannel(msgChan);
+  msgChan = sb.channel('msgs:'+id)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'chat_id=eq.'+id},
+      async ({new:row})=>{ await absorb(id,[row]); if(curChat===id) renderMsgs(id); })
+    .subscribe();
 }
-async function absorb(id,rows){
-  const c=chats.get(id), cache=msgCache.get(id);
+async function absorb(id, rows){
+  const cache=msgCache.get(id), c=chats.get(id);
   let key=null; try{ key=await chatKey(c); }catch(e){}
   for(const r of rows){
     if(cache.has(r.id)) continue;
-    const m={...r};
+    const m=normMsg(r);
     if(m.kind==='sys') m.text=m.plain||'';
     else if(key && m.ct){ try{ m.text=await decText(key,m); }catch(e){ m.text='🔒 не удалось расшифровать'; } }
     else m.text='🔒 нет ключа';
-    cache.set(r.id,m);
+    cache.set(m.id,m);
   }
 }
 function paintHeader(){
   const c=chats.get(curChat); if(!c) return;
   const t=chatTitle(c);
-  $('#topName').textContent=t; $('#topAv').textContent=c.kind==='group'?'👥':initials(t);
-  if(c.kind==='group') $('#topSub').textContent=c.members.length+' участник(ов)';
+  $('#topName').textContent=t; $('#topAv').textContent=c.type==='group'?'👥':initials(t);
+  if(c.type==='group') $('#topSub').textContent=c.members.length+' участник(ов)';
   else{
-    const p=profiles.get(c.members.find(u=>u!==me.uid));
-    const on=p?.last_seen && Date.now()-p.last_seen<120000;
-    $('#topSub').textContent = on?'в сети':(p?.code?'код '+p.code:'');
+    const p=profiles.get(c.members.find(u=>u!==me.uid))||{};
+    const on=p.last_seen && Date.now()-Number(p.last_seen)<120000;
+    $('#topSub').textContent = on?'в сети':(p.code?'код '+p.code:'');
   }
 }
 function renderMsgs(id){
@@ -579,35 +580,37 @@ function renderMsgs(id){
   const items=[...msgCache.get(id).values()].sort((a,b)=>a.ts-b.ts);
   if(!items.length){ box.innerHTML='<div class="empty" style="margin:auto">Сообщений пока нет. Напишите первым.</div>'; return; }
   let lastDay='';
-  const grp=chats.get(id)?.kind==='group';
+  const grp=chats.get(id).type==='group';
   for(const m of items){
     const d=dayLabel(m.ts);
     if(d!==lastDay){ box.appendChild(el('div','day',d)); lastDay=d; }
     if(m.kind==='sys'){ box.appendChild(el('div','sys',m.text)); continue; }
-    const mine=m.sender===me.uid;
+    const mine=m.from===me.uid;
     const b=el('div','bub'+(mine?' me':''));
-    if(grp && !mine) b.appendChild(el('div','who',profiles.get(m.sender)?.name||'Участник'));
+    if(grp && !mine) b.appendChild(el('div','who',(profiles.get(m.from)||{}).name||'Участник'));
+
     if(m.kind==='text') b.appendChild(el('div','txt',m.text));
     else if(m.kind==='image'){
       const img=el('img','ph'); img.alt='фото'; b.appendChild(img);
-      getFile(id,m).then(u=>{ img.src=u; img.onclick=()=>lightbox(u); }).catch(()=>img.replaceWith(el('div','txt','⚠️ файл недоступен')));
+      loadBlob(id,m).then(u=>{ img.src=u; img.onclick=()=>lightbox(u); }).catch(()=>img.alt='не загрузилось');
       if(m.text) b.appendChild(el('div','txt',m.text));
     }
     else if(m.kind==='video'){
-      const v=el('video','vid'); v.controls=true; v.preload='metadata'; b.appendChild(v);
-      getFile(id,m).then(u=>v.src=u).catch(()=>v.replaceWith(el('div','txt','⚠️ файл недоступен')));
+      const v=document.createElement('video'); v.className='ph'; v.controls=true; v.preload='metadata'; b.appendChild(v);
+      loadBlob(id,m).then(u=>v.src=u).catch(()=>{});
     }
     else if(m.kind==='audio'){
-      const a=document.createElement('audio'); a.controls=true; b.appendChild(a);
-      getFile(id,m).then(u=>a.src=u).catch(()=>a.replaceWith(el('div','txt','⚠️ файл недоступен')));
+      const a=document.createElement('audio'); a.controls=true; a.preload='metadata'; b.appendChild(a);
+      loadBlob(id,m).then(u=>a.src=u).catch(()=>{});
     }
     else{
       const card=el('div','filecard');
-      const info=el('div'); info.append(el('b',null,m.meta?.name||'файл'), el('small',null,sizeStr(m.meta?.size||0)));
+      const info=el('div');
+      info.append(el('b',null,(m.meta&&m.meta.name)||'файл'), el('small',null,sizeStr((m.meta&&m.meta.size)||0)));
       card.append(el('div','fi','📎'),info); card.style.cursor='pointer';
       card.onclick=async()=>{
-        try{ const u=await getFile(id,m); const a=document.createElement('a'); a.href=u; a.download=m.meta?.name||'file'; a.click(); }
-        catch(e){ toast('Файл недоступен: '+e.message); }
+        try{ const u=await loadBlob(id,m); const a=document.createElement('a'); a.href=u; a.download=(m.meta&&m.meta.name)||'file'; a.click(); }
+        catch(e){ toast('Не удалось скачать: '+e.message); }
       };
       b.appendChild(card);
     }
@@ -618,42 +621,48 @@ function renderMsgs(id){
 }
 function lightbox(u){ const w=el('div','lightbox'); const i=document.createElement('img'); i.src=u; w.appendChild(i); w.onclick=()=>w.remove(); document.body.appendChild(w); }
 
-/* ---------- файлы через Storage ---------- */
-async function getFile(chatId,m){
+/* ---------- файлы через хранилище ---------- */
+async function putBlob(chatId,key,bytes,mime){
+  const {buf,iv}=await encRaw(key,bytes);
+  const path=chatId+'/'+rid(18);
+  const {error}=await sb.storage.from('media').upload(path, new Blob([buf],{type:'application/octet-stream'}),
+    {contentType:'application/octet-stream', upsert:false});
+  if(error) throw error;
+  return {path, iv, mime};
+}
+async function loadBlob(chatId,m){
   const ck=chatId+'/'+m.id;
   if(blobUrls.has(ck)) return blobUrls.get(ck);
   const key=await chatKey(chats.get(chatId));
-  const {data,error}=await sb.storage.from('media').download(m.path);
+  const {data,error}=await sb.storage.from('media').download(m.blob.path);
   if(error) throw error;
-  const plain=await decFile(key, await data.arrayBuffer(), m.meta.iv);
-  const url=URL.createObjectURL(new Blob([plain],{type:m.meta?.mime||'application/octet-stream'}));
+  const plain=await decRaw(key, await data.arrayBuffer(), m.blob.iv);
+  const url=URL.createObjectURL(new Blob([plain],{type:(m.meta&&m.meta.mime)||'application/octet-stream'}));
   blobUrls.set(ck,url); return url;
 }
+
+/* ---------- отправка ---------- */
 async function sendMsg(kind, payload){
   const c=chats.get(curChat); if(!c) return;
   const key=await chatKey(c);
   const ts=Date.now();
   const enc=await encText(key, payload.text||'');
-  const row={chat_id:c.id, sender:me.uid, ts, kind, ct:enc.ct, iv:enc.iv};
+  const row={id:rid(22), chat_id:c.id, from_uid:me.uid, ts, kind, ct:enc.ct, iv:enc.iv};
   if(payload.bytes){
-    progress(.15);
-    const {blob,iv}=await encFile(key,payload.bytes);
-    const path=c.id+'/'+rid(18);
-    progress(.4);
-    const up=await sb.storage.from('media').upload(path,blob,{contentType:'application/octet-stream'});
-    if(up.error) { progress(0); throw up.error; }
-    row.path=path; row.meta={...(payload.meta||{}), iv};
-    progress(.85);
+    setProg(.15);
+    row.blob=await putBlob(c.id,key,payload.bytes,payload.meta&&payload.meta.mime);
+    row.meta=payload.meta||{};
+    setProg(.75);
   }
   const {error}=await sb.from('messages').insert(row);
-  progress(0);
   if(error) throw error;
   await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
+  setProg(0);
 }
 async function sendSystem(text){
   const c=chats.get(curChat); if(!c) return;
-  await sb.from('messages').insert({chat_id:c.id,sender:me.uid,ts:Date.now(),kind:'sys',plain:text});
+  await sb.from('messages').insert({id:rid(22), chat_id:c.id, from_uid:me.uid, ts:Date.now(), kind:'sys', plain:text});
 }
 
 const input=$('#msgInput');
@@ -667,52 +676,55 @@ $('#btnSend').onclick=doSend;
 async function doSend(){
   const t=input.value.trim(); if(!t) return;
   input.value=''; input.style.height='auto'; input.dispatchEvent(new Event('input'));
-  try{ await sendMsg('text',{text:t}); }catch(e){ toast('Не отправилось: '+(e.message||e)); }
+  try{ await sendMsg('text',{text:t}); }catch(e){ toast('Не отправилось: '+e.message); }
 }
 
 /* ---------- вложения ---------- */
 $('#btnAttach').onclick=e=>{
   e.stopPropagation();
-  document.querySelector('.attach-menu')?.remove();
+  const old=document.querySelector('.attach-menu'); if(old) old.remove();
   const m=el('div','attach-menu');
   const mk=(t,fn)=>{const b=el('button',null,t); b.onclick=()=>{m.remove();fn();}; return b;};
-  m.append(mk('🖼  Фото',()=>$('#imgPick').click()), mk('📎  Файл (до 20 МБ)',()=>$('#filePick').click()));
+  m.append(mk('🖼  Фото (сожмётся автоматически)',()=>$('#imgPick').click()),
+           mk('📎  Файл (до 20 МБ)',()=>$('#filePick').click()));
   $('#composer').appendChild(m);
   setTimeout(()=>document.addEventListener('click',()=>m.remove(),{once:true}),0);
 };
 $('#imgPick').onchange=async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   try{
-    const {bytes,mime}=await compress(f);
-    if(bytes.length>MAX_FILE) return toast(LIMIT_MSG,7000);
-    await sendMsg('image',{bytes,meta:{name:f.name,size:bytes.length,mime}});
-  }catch(err){ progress(0); toast('Ошибка: '+(err.message||err)); }
+    toast('Сжимаем фото…',1600);
+    const r=await compress(f);
+    if(r.bytes.length>MAX_FILE) return toast(LIMIT_MSG,7000);
+    await sendMsg('image',{bytes:r.bytes,meta:{name:f.name,size:r.bytes.length,mime:r.mime,w:r.w,h:r.h}});
+  }catch(err){ setProg(0); toast('Ошибка: '+err.message); }
 };
 $('#filePick').onchange=async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   if(f.size>MAX_FILE) return toast(LIMIT_MSG,7000);
   try{
     const bytes=new Uint8Array(await f.arrayBuffer());
-    const kind = f.type.startsWith('image/')?'image' : f.type.startsWith('video/')?'video' : f.type.startsWith('audio/')?'audio' : 'file';
+    const kind = f.type.indexOf('video/')===0 ? 'video' : f.type.indexOf('audio/')===0 ? 'audio' : 'file';
     await sendMsg(kind,{bytes,meta:{name:f.name,size:f.size,mime:f.type||'application/octet-stream'}});
-  }catch(err){ progress(0); toast('Ошибка: '+(err.message||err)); }
+  }catch(err){ setProg(0); toast('Ошибка: '+err.message); }
 };
 async function compress(file){
-  const img=await new Promise((ok,no)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=no; i.src=URL.createObjectURL(file); });
-  let max=2000, q=0.85, out=null; const mime='image/jpeg';
-  for(let step=0; step<8; step++){
+  const url=URL.createObjectURL(file);
+  const img=await new Promise((ok,no)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=()=>no(new Error('не читается')); i.src=url; });
+  let max=1920, q=0.86, out=null; const mime='image/jpeg';
+  for(let step=0; step<9; step++){
     const s=Math.min(1,max/Math.max(img.width,img.height));
     const cv=document.createElement('canvas');
     cv.width=Math.max(1,Math.round(img.width*s)); cv.height=Math.max(1,Math.round(img.height*s));
     const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height);
     cx.drawImage(img,0,0,cv.width,cv.height);
     const blob=await new Promise(r=>cv.toBlob(r,mime,q));
-    out=blob;
+    out={blob,w:cv.width,h:cv.height};
     if(blob.size<=IMG_TARGET) break;
     if(q>0.5) q-=0.12; else max=Math.round(max*0.8);
   }
-  URL.revokeObjectURL(img.src);
-  return {bytes:new Uint8Array(await out.arrayBuffer()),mime};
+  URL.revokeObjectURL(url);
+  return {bytes:new Uint8Array(await out.blob.arrayBuffer()),mime,w:out.w,h:out.h};
 }
 
 /* ---------- голосовые ---------- */
@@ -721,10 +733,10 @@ $('#btnMic').onclick=async()=>{
   if(rec){ stopRec(false); return; }
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-    const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(t=>MediaRecorder.isTypeSupported(t))||'';
-    rec=new MediaRecorder(stream,mime?{mimeType:mime,audioBitsPerSecond:32000}:{});
+    const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].filter(t=>MediaRecorder.isTypeSupported(t))[0]||'';
+    rec=new MediaRecorder(stream, mime?{mimeType:mime,audioBitsPerSecond:32000}:{});
     recChunks=[]; recCancelled=false;
-    rec.ondataavailable=e=>e.data.size&&recChunks.push(e.data);
+    rec.ondataavailable=e=>{ if(e.data.size) recChunks.push(e.data); };
     rec.onstop=async()=>{
       stream.getTracks().forEach(t=>t.stop());
       clearInterval(recTimer); $('#recBar').classList.add('hidden'); $('#inputBox').classList.remove('hidden');
@@ -732,9 +744,10 @@ $('#btnMic').onclick=async()=>{
       if(recCancelled) return;
       const blob=new Blob(recChunks,{type:mime||'audio/webm'});
       if(blob.size>MAX_FILE) return toast(LIMIT_MSG,7000);
-      const bytes=new Uint8Array(await blob.arrayBuffer());
-      try{ await sendMsg('audio',{bytes,meta:{name:'voice',size:blob.size,mime:blob.type,dur:Math.round((Date.now()-recStart)/1000)}}); }
-      catch(e){ progress(0); toast('Ошибка: '+(e.message||e)); }
+      try{
+        const bytes=new Uint8Array(await blob.arrayBuffer());
+        await sendMsg('audio',{bytes,meta:{name:'voice',size:blob.size,mime:blob.type,dur:Math.round((Date.now()-recStart)/1000)}});
+      }catch(e){ setProg(0); toast('Ошибка: '+e.message); }
     };
     rec.start(); recStart=Date.now();
     $('#inputBox').classList.add('hidden'); $('#recBar').classList.remove('hidden'); $('#btnMic').classList.add('rec');
@@ -745,7 +758,7 @@ $('#recCancel').onclick=()=>stopRec(true);
 function stopRec(cancel){ if(!rec) return; recCancelled=cancel; rec.stop(); }
 
 /* ============================================================
-   КОНТАКТЫ, ГРУППЫ, НАСТРОЙКИ
+   КОНТАКТЫ / ГРУППЫ / НАСТРОЙКИ
    ============================================================ */
 function modal(html){
   const mask=el('div','mask'); const m=el('div','modal'); m.innerHTML=html; mask.appendChild(m);
@@ -753,9 +766,9 @@ function modal(html){
   $('#modalRoot').appendChild(mask); return {mask,m,close:()=>mask.remove()};
 }
 $('#btnAddContact').onclick=$('#btnNewChat').onclick=()=>{
-  const {m,close}=modal(`<h3>Добавить контакт</h3><p class="sub">Введите 10-значный код собеседника. Ваш код: <b>${esc(me.code)}</b></p>
-    <input class="inp" id="codeIn" inputmode="numeric" maxlength="13" placeholder="0000000000" style="letter-spacing:3px;text-align:center;font-size:18px">
-    <div style="height:14px"></div><button class="btn" id="addGo">Найти и открыть чат</button>`);
+  const {m,close}=modal('<h3>Добавить контакт</h3><p class="sub">Введите 10-значный код собеседника. Ваш код: <b>'+esc(me.code)+'</b></p>'
+    +'<input class="inp" id="codeIn" inputmode="numeric" maxlength="13" placeholder="0000000000" style="letter-spacing:3px;text-align:center;font-size:18px">'
+    +'<div style="height:14px"></div><button class="btn" id="addGo">Найти и открыть чат</button>');
   m.querySelector('#codeIn').focus();
   m.querySelector('#addGo').onclick=async()=>{
     const c=m.querySelector('#codeIn').value.replace(/\D/g,'');
@@ -763,24 +776,26 @@ $('#btnAddContact').onclick=$('#btnNewChat').onclick=()=>{
     if(c===me.code) return toast('Это ваш собственный код.');
     const btn=m.querySelector('#addGo'); btn.disabled=true; btn.textContent='Ищем…';
     try{
-      const {data}=await sb.from('users').select('*').eq('code',c).maybeSingle();
+      const {data,error}=await sb.from('profiles').select('*').eq('code',c).maybeSingle();
+      if(error) throw error;
       if(!data){ btn.disabled=false; btn.textContent='Найти и открыть чат'; return toast('Пользователь с таким кодом не найден.'); }
       profiles.set(data.id,data);
       const id=[me.uid,data.id].sort().join('__');
-      const {error}=await sb.from('chats').upsert({id,kind:'direct',members:[me.uid,data.id],updated_at:Date.now()},{onConflict:'id'});
-      if(error) throw error;
-      chats.set(id,{id,kind:'direct',members:[me.uid,data.id],updated_at:Date.now()});
+      const {error:e2}=await sb.from('chats').upsert({id,type:'direct',members:[me.uid,data.id],updated_at:Date.now()});
+      if(e2) throw e2;
+      chats.set(id,{id,type:'direct',members:[me.uid,data.id],gkeys:{},updatedAt:Date.now()});
       close(); renderChatList(); openChat(id);
-    }catch(e){ btn.disabled=false; btn.textContent='Найти и открыть чат'; toast('Ошибка: '+(e.message||e)); }
+    }catch(e){ btn.disabled=false; btn.textContent='Найти и открыть чат'; toast('Ошибка: '+e.message); }
   };
 };
 $('#btnNewGroup').onclick=()=>{
-  const contacts=[...chats.values()].filter(c=>c.kind==='direct').map(c=>c.members.find(u=>u!==me.uid));
+  const contacts=[...chats.values()].filter(c=>c.type==='direct').map(c=>c.members.find(u=>u!==me.uid));
   if(!contacts.length) return toast('Сначала добавьте хотя бы один контакт по коду.');
-  const rows=contacts.map(u=>`<label class="pick"><input type="checkbox" value="${esc(u)}"><span class="av" style="width:34px;height:34px;font-size:13px;background:hsl(${hue(u)} 55% 52%)">${esc(initials(profiles.get(u)?.name))}</span> ${esc(profiles.get(u)?.name||'Контакт')}</label>`).join('');
-  const {m,close}=modal(`<h3>Новая группа</h3><p class="sub">Ключ группы шифруется отдельно для каждого участника.</p>
-    <input class="inp" id="gname" maxlength="40" placeholder="Название группы"><div style="height:12px"></div>${rows}
-    <div style="height:14px"></div><button class="btn" id="gGo">Создать группу</button>`);
+  const rows=contacts.map(u=>'<label class="pick"><input type="checkbox" value="'+u+'"><span class="av" style="width:34px;height:34px;font-size:13px;background:hsl('+hue(u)+' 55% 52%)">'
+    +esc(initials((profiles.get(u)||{}).name))+'</span> '+esc((profiles.get(u)||{}).name||'Контакт')+'</label>').join('');
+  const {m,close}=modal('<h3>Новая группа</h3><p class="sub">Название и участники. Ключ группы шифруется отдельно для каждого.</p>'
+    +'<input class="inp" id="gname" maxlength="40" placeholder="Название группы"><div style="height:12px"></div>'+rows
+    +'<div style="height:14px"></div><button class="btn" id="gGo">Создать группу</button>');
   m.querySelector('#gGo').onclick=async()=>{
     const name=m.querySelector('#gname').value.trim();
     const picked=[...m.querySelectorAll('input:checked')].map(i=>i.value);
@@ -790,46 +805,47 @@ $('#btnNewGroup').onclick=()=>{
     try{
       const raw=crypto.getRandomValues(new Uint8Array(32));
       const gkeys={};
-      for(const u of [me.uid,...picked]){
+      for(const u of [me.uid].concat(picked)){
         const p=await getProfile(u);
-        gkeys[u]={...(await encBytes(await sharedKey(u===me.uid?me.pub:p.pub), raw)), by:me.uid};
+        const wrapped=await encBytes(await sharedKey(u===me.uid?me.pub:p.pub), raw);
+        gkeys[u]={ct:wrapped.ct, iv:wrapped.iv, by:me.uid};
       }
       const id='g_'+rid(16);
-      const {error}=await sb.from('chats').insert({id,kind:'group',name,owner:me.uid,members:[me.uid,...picked],gkeys,updated_at:Date.now()});
+      const {error}=await sb.from('chats').insert({id,type:'group',name,owner:me.uid,members:[me.uid].concat(picked),gkeys,updated_at:Date.now()});
       if(error) throw error;
-      await loadChats(); close(); openChat(id);
-    }catch(e){ btn.disabled=false; btn.textContent='Создать группу'; toast('Ошибка: '+(e.message||e)); }
+      close(); setTimeout(()=>openChat(id),400);
+    }catch(e){ btn.disabled=false; btn.textContent='Создать группу'; toast('Ошибка: '+e.message); }
   };
 };
 $('#btnChatInfo').onclick=async()=>{
   const c=chats.get(curChat); if(!c) return;
-  if(c.kind!=='group'){
-    const p=profiles.get(c.members.find(u=>u!==me.uid));
-    modal(`<h3>${esc(p?.name||'Контакт')}</h3><p class="sub">Личный чат</p>
-      <p>Код: <b>${esc(p?.code||'—')}</b></p>
-      <p style="color:var(--mut);font-size:13px">Общий ключ вычисляется из ваших ключевых пар и никуда не отправляется. Сервер видит только шифротекст.</p>`);
+  if(c.type!=='group'){
+    const p=profiles.get(c.members.find(u=>u!==me.uid))||{};
+    modal('<h3>'+esc(p.name||'Контакт')+'</h3><p class="sub">Личный чат</p><p>Код: <b>'+esc(p.code||'—')+'</b></p>'
+      +'<p style="color:var(--mut);font-size:13px">Общий ключ вычисляется из ваших ключевых пар и никуда не передаётся. Сервер хранит только шифротекст.</p>');
     return;
   }
-  const memRows=c.members.map(u=>`<div class="pick"><span class="av" style="width:34px;height:34px;font-size:13px;background:hsl(${hue(u)} 55% 52%)">${esc(initials(profiles.get(u)?.name))}</span> ${esc(u===me.uid?'Вы':(profiles.get(u)?.name||'Участник'))}</div>`).join('');
-  const cand=[...chats.values()].filter(x=>x.kind==='direct').map(x=>x.members.find(u=>u!==me.uid)).filter(u=>!c.members.includes(u));
-  const opts=cand.map(u=>`<option value="${esc(u)}">${esc(profiles.get(u)?.name||u)}</option>`).join('');
-  const {m,close}=modal(`<h3>${esc(c.name)}</h3><p class="sub">${c.members.length} участник(ов)</p>${memRows}
-    <div style="height:14px"></div>
-    ${cand.length?`<b style="font-size:12px;color:var(--mut)">ДОБАВИТЬ УЧАСТНИКА</b><select class="inp" id="addSel">${opts}</select><div style="height:8px"></div><button class="btn ghost" id="addM">Добавить в группу</button>`:'<p class="sub">Все ваши контакты уже в группе.</p>'}
-    <div style="height:10px"></div><button class="btn danger" id="leaveG">Выйти из группы</button>`);
-  m.querySelector('#addM')?.addEventListener('click',async()=>{
+  const mem=c.members.map(u=>'<div class="pick"><span class="av" style="width:34px;height:34px;font-size:13px;background:hsl('+hue(u)+' 55% 52%)">'
+    +esc(initials((profiles.get(u)||{}).name))+'</span> '+esc(u===me.uid?'Вы':((profiles.get(u)||{}).name||'Участник'))+'</div>').join('');
+  const cand=[...chats.values()].filter(x=>x.type==='direct').map(x=>x.members.find(u=>u!==me.uid)).filter(u=>c.members.indexOf(u)<0);
+  const opts=cand.map(u=>'<option value="'+u+'">'+esc((profiles.get(u)||{}).name||u)+'</option>').join('');
+  const {m,close}=modal('<h3>'+esc(c.name)+'</h3><p class="sub">'+c.members.length+' участник(ов)</p>'+mem+'<div style="height:14px"></div>'
+    +(cand.length?'<b style="font-size:12px;color:var(--mut)">ДОБАВИТЬ УЧАСТНИКА</b><select class="inp" id="addSel">'+opts
+      +'</select><div style="height:8px"></div><button class="btn ghost" id="addM">Добавить в группу</button>':'<p class="sub">Все ваши контакты уже в группе.</p>')
+    +'<div style="height:10px"></div><button class="btn danger" id="leaveG">Выйти из группы</button>');
+  const addBtn=m.querySelector('#addM');
+  if(addBtn) addBtn.onclick=async()=>{
     const u=m.querySelector('#addSel').value;
     try{
-      const w=c.gkeys[me.uid];
-      const wrapper=await getProfile(w.by);
-      const raw=await decBytes(await sharedKey(w.by===me.uid?me.pub:wrapper.pub), w);
+      const raw=await groupRawKey(c);
       const p=await getProfile(u);
-      const gkeys={...c.gkeys, [u]:{...(await encBytes(await sharedKey(p.pub), raw)), by:me.uid}};
-      const {error}=await sb.from('chats').update({members:[...c.members,u], gkeys, updated_at:Date.now()}).eq('id',c.id);
+      const w=await encBytes(await sharedKey(p.pub), raw);
+      const gkeys=Object.assign({},c.gkeys); gkeys[u]={ct:w.ct,iv:w.iv,by:me.uid};
+      const {error}=await sb.from('chats').update({members:c.members.concat([u]), gkeys, updated_at:Date.now()}).eq('id',c.id);
       if(error) throw error;
       close(); toast('Участник добавлен.');
-    }catch(e){ toast('Ошибка: '+(e.message||e)); }
-  });
+    }catch(e){ toast('Ошибка: '+e.message); }
+  };
   m.querySelector('#leaveG').onclick=async()=>{
     await sb.from('chats').update({members:c.members.filter(u=>u!==me.uid)}).eq('id',c.id);
     chats.delete(c.id); close(); curChat=null;
@@ -838,42 +854,70 @@ $('#btnChatInfo').onclick=async()=>{
   };
 };
 $('#btnSettings').onclick=()=>{
-  const {m,close}=modal(`<h3>Настройки</h3><p class="sub">Профиль и код доступа</p>
-    <label class="field"><b>Имя</b><input class="inp" id="nn" maxlength="28" value="${esc(me.name)}"></label>
-    <label class="field"><b>Ваш код</b><input class="inp" id="cc" value="${esc(me.code)}" readonly></label>
-    <button class="btn" id="saveN">Сохранить имя</button>
-    <div style="height:8px"></div><button class="btn ghost" id="copyC">Копировать код</button>
-    <div style="height:8px"></div><button class="btn ghost" id="expK">Ключ для входа на другом устройстве</button>
-    <div id="keyOut" class="hidden" style="margin-top:10px">
-      <textarea class="inp" id="keyTxt" rows="3" readonly style="font-size:11px;resize:vertical"></textarea>
-      <div style="height:6px"></div><button class="btn ghost" id="copyK">Копировать ключ</button>
-    </div>
-    <p class="note">Ключ шифрования хранится только в этом браузере. Сохраните ключ переноса — без него профиль и переписку не восстановить, если очистить данные сайта. Никому его не показывайте.</p>`);
+  const {m,close}=modal('<h3>Настройки</h3><p class="sub">Профиль и код доступа</p>'
+    +'<label class="field"><b>Имя</b><input class="inp" id="nn" maxlength="28" value="'+esc(me.name)+'"></label>'
+    +'<label class="field"><b>Ваш код</b><input class="inp" id="cc" value="'+esc(me.code)+'" readonly></label>'
+    +'<button class="btn" id="saveN">Сохранить имя</button>'
+    +'<div style="height:8px"></div><button class="btn ghost" id="copyC">Копировать код</button>'
+    +'<div style="height:8px"></div><button class="btn ghost" id="expK">Ключ для входа на другом устройстве</button>'
+    +'<div id="keyOut" class="hidden" style="margin-top:10px"><textarea class="inp" id="keyTxt" rows="3" readonly style="font-size:11px;resize:vertical"></textarea>'
+    +'<div style="height:6px"></div><button class="btn ghost" id="copyK">Копировать ключ</button></div>'
+    +'<p class="note">Ключ шифрования хранится только в этом браузере. Сохраните ключ переноса — без него профиль и переписку не восстановить. Никому его не показывайте.</p>');
   m.querySelector('#saveN').onclick=async()=>{
     const n=m.querySelector('#nn').value.trim();
     if(n.length<2) return toast('Имя слишком короткое.');
-    const {error}=await sb.from('users').update({name:n}).eq('id',me.uid);
+    const {error}=await sb.from('profiles').update({name:n}).eq('id',me.uid);
     if(error) return toast('Ошибка: '+error.message);
-    me.name=n; profiles.set(me.uid,{...profiles.get(me.uid),name:n});
+    me.name=n; profiles.set(me.uid,Object.assign({},profiles.get(me.uid),{name:n}));
     close(); renderChatList(); toast('Имя обновлено — его увидят все контакты.');
   };
   m.querySelector('#copyC').onclick=()=>copy(me.code);
-  m.querySelector('#expK').onclick=()=>{ m.querySelector('#keyOut').classList.remove('hidden'); m.querySelector('#keyTxt').value=profileKey(); };
+  m.querySelector('#expK').onclick=()=>{
+    m.querySelector('#keyOut').classList.remove('hidden');
+    m.querySelector('#keyTxt').value=profileKey();
+  };
   m.querySelector('#copyK').onclick=()=>copy(m.querySelector('#keyTxt').value);
 };
 $('#copyCode').onclick=()=>copy(me.code);
 function copy(t){
-  navigator.clipboard?.writeText(t).then(()=>toast('Скопировано',2000))
-    .catch(()=>{ const i=document.createElement('textarea'); i.value=t; document.body.appendChild(i); i.select(); document.execCommand('copy'); i.remove(); toast('Скопировано',2000); });
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>toast('Скопировано',1800),()=>fallbackCopy(t));
+  else fallbackCopy(t);
+}
+function fallbackCopy(t){
+  const i=document.createElement('textarea'); i.value=t; document.body.appendChild(i); i.select();
+  try{ document.execCommand('copy'); toast('Скопировано',1800); }catch(e){ toast('Скопируйте вручную'); }
+  i.remove();
 }
 $('#searchInput').oninput=renderChatList;
 $('#btnBack').onclick=()=>{ $('#main').classList.remove('open'); curChat=null; renderChatList(); };
-addEventListener('resize',()=>{ $('#btnBack').style.display = (innerWidth<=820 && curChat)?'grid':'none'; });
+addEventListener('resize',()=>{ $('#btnBack').style.display=(innerWidth<=820&&curChat)?'grid':'none'; });
 
 /* ============================================================
-   ЗВОНКИ — WebRTC mesh, сигналинг через Supabase Realtime
+   ЗВОНКИ — WebRTC поверх Realtime (broadcast + presence)
    ============================================================ */
 let call=null;
+
+function watchCalls(){
+  if(userChan) sb.removeChannel(userChan);
+  userChan = sb.channel('user:'+me.uid, {config:{broadcast:{self:false}}})
+    .on('broadcast',{event:'ring'}, ({payload})=>{
+      if(call && call.roomId===payload.roomId) return;
+      if(Date.now()-payload.ts>45000) return;
+      showIncoming(payload);
+    })
+    .on('broadcast',{event:'cancel'}, ({payload})=>{
+      const w=document.querySelector('.incoming');
+      if(w && w.dataset.room===payload.roomId){ ring(false); w.remove(); }
+    })
+    .subscribe();
+}
+async function ringUser(uid, payload, event){
+  const ch = sb.channel('user:'+uid, {config:{broadcast:{self:false}}});
+  await new Promise(ok=>ch.subscribe(st=>{ if(st==='SUBSCRIBED') ok(); }));
+  await ch.send({type:'broadcast', event:event||'ring', payload});
+  setTimeout(()=>sb.removeChannel(ch), 1500);
+}
+
 $('#btnAudioCall').onclick=()=>startCall(false);
 $('#btnVideoCall').onclick=()=>startCall(true);
 
@@ -882,92 +926,77 @@ async function startCall(video){
   if(call) return toast('Звонок уже идёт.');
   const roomId='rm_'+rid(14);
   try{ await joinRoom(roomId,c,video,true); }catch(e){ return; }
-  const rows=c.members.filter(u=>u!==me.uid).map(u=>({
-    recipient:u, sender:me.uid, sender_name:me.name, room_id:roomId, chat_id:c.id,
-    title:c.kind==='group'?(c.name||'Группа'):me.name, video, ts:Date.now()
-  }));
-  await sb.from('invites').insert(rows);
-  sendSystem((video?'Видеозвонок':'Звонок')+' начат: '+me.name);
+  const payload={roomId, chatId:c.id, from:me.uid, fromName:me.name,
+    title:c.type==='group'?(c.name||'Группа'):me.name, video, ts:Date.now()};
+  for(const u of c.members) if(u!==me.uid) ringUser(u,payload).catch(()=>{});
+  sendSystem((video?'Видеозвонок':'Звонок')+' начат: '+me.name).catch(()=>{});
 }
-function watchInvites(){
-  chInvites = sb.channel('inv-'+me.uid)
-    .on('postgres_changes',{event:'INSERT',schema:'public',table:'invites',filter:'recipient=eq.'+me.uid},p=>{
-      const inv=p.new;
-      if(Date.now()-inv.ts>60000) return;
-      if(call && call.roomId===inv.room_id) return;
-      showIncoming(inv);
-    }).subscribe();
-}
+
 let ringOsc=null;
 function ring(on){
   try{
-    if(on){
+    if(on && !ringOsc){
       const ac=new (window.AudioContext||window.webkitAudioContext)();
       const g=ac.createGain(); g.gain.value=0.0001; g.connect(ac.destination);
       const o=ac.createOscillator(); o.type='sine'; o.frequency.value=520; o.connect(g); o.start();
       let t=0; const iv=setInterval(()=>{ t++; g.gain.setTargetAtTime((t%2)?0.06:0.0001, ac.currentTime, .02); },500);
       ringOsc={ac,o,iv};
-    }else if(ringOsc){ clearInterval(ringOsc.iv); ringOsc.o.stop(); ringOsc.ac.close(); ringOsc=null; }
+    }else if(!on && ringOsc){ clearInterval(ringOsc.iv); ringOsc.o.stop(); ringOsc.ac.close(); ringOsc=null; }
   }catch(e){}
 }
 function showIncoming(inv){
-  document.querySelector('.incoming')?.remove();
+  const old=document.querySelector('.incoming'); if(old) old.remove();
   ring(true);
-  const w=el('div','incoming');
-  w.innerHTML=`<div class="av" style="background:hsl(${hue(inv.sender)} 55% 52%)">${esc(initials(inv.sender_name))}</div>
-    <div style="flex:1"><b>${esc(inv.sender_name||'Контакт')}</b><small>${inv.video?'Входящий видеозвонок':'Входящий звонок'}</small></div>
-    <button class="rbtn" id="dec" style="background:var(--bad)">✕</button>
-    <button class="rbtn" id="acc" style="background:var(--ok)">✆</button>`;
+  const w=el('div','incoming'); w.dataset.room=inv.roomId;
+  w.innerHTML='<div class="av" style="background:hsl('+hue(inv.from)+' 55% 52%)">'+esc(initials(inv.fromName))+'</div>'
+    +'<div style="flex:1"><b>'+esc(inv.title||inv.fromName||'Контакт')+'</b><small>'+(inv.video?'Входящий видеозвонок':'Входящий звонок')+'</small></div>'
+    +'<button class="rbtn" id="dec" style="background:var(--bad)">✕</button>'
+    +'<button class="rbtn" id="acc" style="background:var(--ok)">✆</button>';
   document.body.appendChild(w);
   const kill=()=>{ ring(false); w.remove(); };
-  const timer=setTimeout(()=>{ kill(); sb.from('invites').delete().eq('id',inv.id).then(()=>{}); },45000);
-  w.querySelector('#dec').onclick=()=>{ clearTimeout(timer); kill(); sb.from('invites').delete().eq('id',inv.id).then(()=>{}); };
+  const timer=setTimeout(kill,45000);
+  w.querySelector('#dec').onclick=()=>{ clearTimeout(timer); kill(); };
   w.querySelector('#acc').onclick=async()=>{
-    clearTimeout(timer); kill(); sb.from('invites').delete().eq('id',inv.id).then(()=>{});
-    let c=chats.get(inv.chat_id);
-    if(!c){ await loadChats(); c=chats.get(inv.chat_id) || {id:inv.chat_id,kind:'direct',members:[me.uid,inv.sender]}; }
-    try{ await joinRoom(inv.room_id,c,inv.video,false); }catch(e){}
+    clearTimeout(timer); kill();
+    const c=chats.get(inv.chatId)||{id:inv.chatId,type:'direct',members:[me.uid,inv.from],gkeys:{}};
+    try{ await joinRoom(inv.roomId,c,inv.video,false); }catch(e){}
   };
 }
 
 async function joinRoom(roomId, chat, video, isCaller){
+  const many=(chat.members||[]).length>2;
+  const vCons = many ? {width:{ideal:640},height:{ideal:360},frameRate:{ideal:20,max:24},facingMode:'user'}
+                     : {width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30},facingMode:'user'};
   let stream;
-  const vCons = (chat.members?.length>2)
-    ? {width:{ideal:640},height:{ideal:360},frameRate:{ideal:20,max:24},facingMode:'user'}
-    : {width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30},facingMode:'user'};
-  try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}, video: video?vCons:false}); }
-  catch(e){ toast('Нет доступа к камере или микрофону. Разрешите доступ в браузере.'); throw e; }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}, video: video?vCons:false});
+  }catch(e){ toast('Нет доступа к камере или микрофону. Разрешите доступ в настройках браузера.'); throw e; }
 
-  call={roomId, chatId:chat.id, video, stream, peers:new Map(), started:Date.now(), ch:null, hb:null};
+  call={roomId, chatId:chat.id, video, stream, peers:new Map(), known:new Set(), started:Date.now(), chat};
   buildCallUI(chat, isCaller);
 
-  // Realtime-канал комнаты: и участники, и сигналы идут через broadcast (мгновенно, без записи в базу)
-  const ch = sb.channel('room-'+roomId, {config:{broadcast:{self:false}}});
-  call.ch = ch;
+  const ch = sb.channel('room:'+roomId, {config:{presence:{key:me.uid}, broadcast:{self:false}}});
+  call.ch=ch;
 
-  ch.on('broadcast',{event:'hello'}, ({payload})=>{
-    if(payload.uid===me.uid) return;
-    addTile(payload.uid,payload.name);
-    // отвечаем, чтобы новичок узнал о нас
-    ch.send({type:'broadcast',event:'here',payload:{uid:me.uid,name:me.name,to:payload.uid}});
-    if(me.uid < payload.uid) makeOffer(payload.uid);
+  ch.on('presence',{event:'sync'},()=>{
+    const st=ch.presenceState();
+    for(const uid of Object.keys(st)){
+      if(uid===me.uid || call.known.has(uid)) continue;
+      call.known.add(uid);
+      const nm=(st[uid][0]&&st[uid][0].name)||'Участник';
+      addTile(uid,nm);
+      setStatus('Соединяем…');
+      if(me.uid<uid) makeOffer(uid);
+    }
   });
-  ch.on('broadcast',{event:'here'}, ({payload})=>{
-    if(payload.uid===me.uid || (payload.to && payload.to!==me.uid)) return;
-    addTile(payload.uid,payload.name);
-    if(me.uid < payload.uid) makeOffer(payload.uid);
+  ch.on('presence',{event:'leave'},({key})=>{
+    if(key===me.uid) return;
+    call.known.delete(key); dropPeer(key);
+    if(call.known.size===0) endCall();
   });
-  ch.on('broadcast',{event:'sig'}, async ({payload})=>{
-    if(payload.to!==me.uid) return;
-    await handleSignal(payload);
-  });
-  ch.on('broadcast',{event:'bye'}, ({payload})=>{
-    dropPeer(payload.uid);
-    if(call && call.peers.size===0) endCall();
-  });
+  ch.on('broadcast',{event:'sig'},({payload})=>{ if(payload.to===me.uid) handleSignal(payload); });
 
-  await new Promise(res=>ch.subscribe(status=>{ if(status==='SUBSCRIBED') res(); setTimeout(res,4000); }));
-  ch.send({type:'broadcast',event:'hello',payload:{uid:me.uid,name:me.name}});
+  await new Promise(ok=>ch.subscribe(async st=>{ if(st==='SUBSCRIBED'){ await ch.track({name:me.name}); ok(); } }));
 }
 
 function pcFor(uid){
@@ -980,11 +1009,11 @@ function pcFor(uid){
   pc.ontrack=e=>attachStream(uid,e.streams[0]);
   pc.onconnectionstatechange=()=>{
     if(pc.connectionState==='connected') setStatus('Соединено');
-    if(['failed','closed'].includes(pc.connectionState)) dropPeer(uid);
+    if(pc.connectionState==='failed') { setStatus('Не удалось соединиться'); dropPeer(uid); }
   };
   return p;
 }
-function sig(to,kind,data){ call?.ch?.send({type:'broadcast',event:'sig',payload:{from:me.uid,to,kind,data}}); }
+const sig=(to,kind,data)=>call && call.ch.send({type:'broadcast',event:'sig',payload:{from:me.uid,to,kind,data}});
 
 async function makeOffer(uid){
   const p=pcFor(uid);
@@ -1013,81 +1042,89 @@ async function handleSignal(s){
       const cand=new RTCIceCandidate(JSON.parse(s.data));
       if(p.pc.remoteDescription) p.pc.addIceCandidate(cand).catch(()=>{}); else p.pending.push(cand);
     }
-  }catch(e){ console.warn('signal',e); }
+  }catch(e){}
 }
 function flush(p){ p.pending.splice(0).forEach(c=>p.pc.addIceCandidate(c).catch(()=>{})); }
 async function capBitrate(pc){
   const many=call.peers.size>1;
   for(const s of pc.getSenders()){
     if(!s.track) continue;
-    const prm=s.getParameters(); prm.encodings=prm.encodings?.length?prm.encodings:[{}];
-    prm.encodings[0].maxBitrate = s.track.kind==='video' ? (many?450000:1200000) : 32000;
+    const prm=s.getParameters();
+    prm.encodings=(prm.encodings&&prm.encodings.length)?prm.encodings:[{}];
+    prm.encodings[0].maxBitrate = s.track.kind==='video' ? (many?400000:900000) : 32000;
     if(s.track.kind==='video') prm.degradationPreference='balanced';
     try{ await s.setParameters(prm); }catch(e){}
   }
 }
 function dropPeer(uid){
-  const p=call?.peers.get(uid); if(!p) return;
+  if(!call) return;
+  const p=call.peers.get(uid); if(!p) return;
   try{ p.pc.close(); }catch(e){}
   call.peers.delete(uid);
-  document.getElementById('tile_'+uid)?.remove();
+  const t=document.getElementById('tile_'+uid); if(t) t.remove();
 }
+
 function buildCallUI(chat,isCaller){
-  $('#callRoot').innerHTML=`<div class="call">
-    <div class="call-head"><b>${esc(chat.kind==='group'?(chat.name||'Группа'):chatTitle(chat))}</b><span id="callStatus">${isCaller?'Вызываем…':'Подключаемся…'}</span></div>
-    <div class="grid" id="grid"></div>
-    <div class="call-bar">
-      <button class="cbtn" id="cMic"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18 11a1 1 0 0 1 2 0 8 8 0 0 1-7 7.9V21h-2v-2.1A8 8 0 0 1 4 11a1 1 0 0 1 2 0 6 6 0 0 0 12 0z"/></svg></button>
-      <button class="cbtn ${call.video?'':'off'}" id="cCam"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
-      <button class="cbtn end" id="cEnd"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="transform:rotate(134deg)"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.2.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1l-2.3 2.2z"/></svg></button>
-    </div></div>`;
+  $('#callRoot').innerHTML='<div class="call">'
+    +'<div class="call-head"><b>'+esc(chat.type==='group'?(chat.name||'Группа'):chatTitle(chat))+'</b>'
+    +'<span id="callStatus">'+(isCaller?'Вызываем…':'Подключаемся…')+'</span></div>'
+    +'<div class="grid" id="grid"></div>'
+    +'<div class="call-bar">'
+    +'<button class="cbtn" id="cMic"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18 11a1 1 0 0 1 2 0 8 8 0 0 1-7 7.9V21h-2v-2.1A8 8 0 0 1 4 11a1 1 0 0 1 2 0 6 6 0 0 0 12 0z"/></svg></button>'
+    +'<button class="cbtn'+(call.video?'':' off')+'" id="cCam"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>'
+    +'<button class="cbtn end" id="cEnd"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="transform:rotate(134deg)"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.2.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1l-2.3 2.2z"/></svg></button>'
+    +'</div></div>';
   addTile(me.uid,'Вы',true);
-  if(!call.video) document.getElementById('tile_'+me.uid).classList.add('novideo');
+  if(!call.video){ const t=document.getElementById('tile_'+me.uid); if(t) t.classList.add('novideo'); }
   $('#cEnd').onclick=endCall;
-  $('#cMic').onclick=e=>{ const t=call.stream.getAudioTracks()[0]; if(!t)return; t.enabled=!t.enabled; e.currentTarget.classList.toggle('off',!t.enabled); };
+  $('#cMic').onclick=e=>{
+    const t=call.stream.getAudioTracks()[0]; if(!t) return;
+    t.enabled=!t.enabled; e.currentTarget.classList.toggle('off',!t.enabled);
+  };
   $('#cCam').onclick=async e=>{
     let t=call.stream.getVideoTracks()[0];
     if(!t){
       try{
         const s=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:960},height:{ideal:540},facingMode:'user'}});
         t=s.getVideoTracks()[0]; call.stream.addTrack(t);
-        for(const p of call.peers.values()){ p.pc.addTrack(t,call.stream); await makeOffer(p.uid); }
-        document.querySelector('#tile_'+me.uid+' video').srcObject=call.stream;
+        call.peers.forEach(p=>p.pc.addTrack(t,call.stream));
+        const v=document.querySelector('#tile_'+me.uid+' video'); if(v) v.srcObject=call.stream;
       }catch(err){ return toast('Камера недоступна.'); }
     }else t.enabled=!t.enabled;
     e.currentTarget.classList.toggle('off',!t.enabled);
-    document.getElementById('tile_'+me.uid).classList.toggle('novideo',!t.enabled);
+    const tile=document.getElementById('tile_'+me.uid); if(tile) tile.classList.toggle('novideo',!t.enabled);
   };
 }
-const setStatus=t=>{ const s=$('#callStatus'); if(s) s.textContent=t||'Соединено'; };
+function setStatus(t){ const s=$('#callStatus'); if(s) s.textContent=t; }
 function addTile(uid,name,self){
   if(document.getElementById('tile_'+uid)) return;
   const t=el('div','tile'); t.id='tile_'+uid;
-  const av=el('div','bigav',initials(name)); av.style.background=`hsl(${hue(uid)} 55% 45%)`;
+  const av=el('div','bigav',initials(name)); av.style.background='hsl('+hue(uid)+' 55% 45%)';
   const v=document.createElement('video'); v.autoplay=true; v.playsInline=true;
   if(self){ v.muted=true; v.srcObject=call.stream; }
   t.append(av,v,el('div','nm',name||'Участник'));
-  $('#grid')?.appendChild(t);
+  const g=$('#grid'); if(g) g.appendChild(t);
 }
 function attachStream(uid,stream){
-  if(!document.getElementById('tile_'+uid)) addTile(uid,profiles.get(uid)?.name||'Участник');
-  const t=document.getElementById('tile_'+uid);
-  const v=t.querySelector('video');
+  if(!document.getElementById('tile_'+uid)) addTile(uid,(profiles.get(uid)||{}).name||'Участник');
+  const v=document.querySelector('#tile_'+uid+' video');
   if(v && v.srcObject!==stream) v.srcObject=stream;
-  t.classList.toggle('novideo', stream.getVideoTracks().length===0);
+  const t=document.getElementById('tile_'+uid);
+  if(t) t.classList.toggle('novideo', stream.getVideoTracks().length===0);
   setStatus('Соединено');
 }
-function endCall(){
+async function endCall(){
   if(!call) return;
-  const secs=Math.round((Date.now()-call.started)/1000);
-  try{ call.ch?.send({type:'broadcast',event:'bye',payload:{uid:me.uid}}); }catch(e){}
-  try{ sb.removeChannel(call.ch); }catch(e){}
-  call.peers.forEach(p=>{ try{p.pc.close();}catch(e){} });
-  call.stream.getTracks().forEach(t=>t.stop());
-  call=null; $('#callRoot').innerHTML=''; ring(false);
+  const c=call; call=null;
+  try{ c.ch.untrack(); sb.removeChannel(c.ch); }catch(e){}
+  c.peers.forEach(p=>{ try{p.pc.close();}catch(e){} });
+  c.stream.getTracks().forEach(t=>t.stop());
+  $('#callRoot').innerHTML=''; ring(false);
+  const secs=Math.round((Date.now()-c.started)/1000);
+  if(c.chat && c.chat.members) for(const u of c.chat.members) if(u!==me.uid) ringUser(u,{roomId:c.roomId},'cancel').catch(()=>{});
   if(secs>3) toast('Звонок завершён · '+mmss(secs),2500);
 }
-addEventListener('beforeunload',()=>{ try{ call?.ch?.send({type:'broadcast',event:'bye',payload:{uid:me.uid}}); }catch(e){} });
+addEventListener('beforeunload',()=>{ if(call){ try{ call.ch.untrack(); }catch(e){} } });
 </script>
 </body>
 </html>
