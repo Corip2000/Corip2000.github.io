@@ -1169,8 +1169,8 @@ if(window.visualViewport){
     vvT=setTimeout(()=>{ if(curChat && document.activeElement===input) scrollBottom(); },90);
   });
 }
+// preventDefault только для мыши: на тач-экране он гасит сам клик
 $('#btnSend').addEventListener('mousedown',e=>e.preventDefault());
-$('#btnSend').addEventListener('touchstart',e=>e.preventDefault(),{passive:false});
 $('#btnSend').onclick=doSend;
 async function doSend(){
   const t=input.value.trim(); if(!t) return;
