@@ -118,6 +118,16 @@ button{cursor:pointer;border:0;background:none}
 .filecard small{color:var(--mut);font-size:12px}
 .sys{align-self:center;background:#FFF6D9;color:#7a5c00;font-size:12.5px;padding:5px 12px;border-radius:10px;margin:6px 0;text-align:center;max-width:80%}
 
+.replybar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#F0EBFA;border-top:1px solid var(--line)}
+.replybar .rb-line{width:3px;align-self:stretch;background:var(--p);border-radius:2px;flex:none}
+.rb-body{flex:1;min-width:0}
+.rb-body b{display:block;font-size:12.5px;color:var(--p-dark)}
+.rb-body span{display:block;font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.replybar button{color:var(--mut);font-size:17px;padding:0 6px;flex:none}
+.quote{border-left:3px solid var(--p);background:rgba(124,58,237,.09);border-radius:6px;padding:4px 8px;margin-bottom:4px;cursor:pointer}
+.quote b{display:block;font-size:12.5px;color:var(--p-dark)}
+.quote span{display:block;font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bub{transition:transform .18s ease}
 .comp{padding:8px 10px;display:flex;align-items:flex-end;gap:8px;background:#F0EBFA;border-top:1px solid var(--line)}
 .comp .box{flex:1;display:flex;align-items:flex-end;background:#fff;border-radius:22px;padding:4px 6px 4px 14px;box-shadow:var(--sh)}
 .comp textarea{flex:1;border:0;outline:none;resize:none;max-height:120px;padding:8px 0;background:none;font-size:15px}
@@ -281,6 +291,11 @@ body.mini #app{padding-top:46px}
       </div>
     </div>
 
+    <div class="replybar hidden" id="replyBar">
+      <div class="rb-line"></div>
+      <div class="rb-body"><b id="replyWho">—</b><span id="replyTxt">—</span></div>
+      <button id="replyOff">✕</button>
+    </div>
     <div class="comp" id="composer" style="display:none;position:relative">
       <div class="prog" id="prog"></div>
       <button class="icobtn" id="btnAttach" style="color:var(--p-dark);flex:none">
@@ -804,7 +819,7 @@ async function previewText(c){
    СООБЩЕНИЯ
    ============================================================ */
 const normMsg = r => ({id:r.id, from:r.from_uid, ts:Number(r.ts), kind:r.kind, ct:r.ct, iv:r.iv,
-                       delivered:r.delivered_to||[], read:r.read_by||[],
+                       delivered:r.delivered_to||[], read:r.read_by||[], reply:r.reply||null,
                        plain:r.plain, meta:r.meta, blob:r.blob});
 
 async function openChat(id){
@@ -863,6 +878,12 @@ async function absorb(id, rows){
   for(const r of rows){
     if(cache.has(r.id)) continue;
     const m=normMsg(r);
+    if(m.reply){
+      const icons={image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео'};
+      if(m.reply.kind==='text' && key && m.reply.ct){
+        try{ m.replyText=await decText(key,m.reply); }catch(e){ m.replyText='🔒 зашифровано'; }
+      } else m.replyText=icons[m.reply.kind]||'сообщение';
+    }
     if(m.kind==='sys') m.text=m.plain||'';
     else if(key && m.ct){ try{ m.text=await decText(key,m); }catch(e){ m.text='🔒 не удалось расшифровать'; } }
     else m.text='🔒 нет ключа';
@@ -897,12 +918,39 @@ function renderMsgs(id){
     const mine=m.from===me.uid;
     const b=el('div','bub'+(mine?' me':'')+(m.pending?' pending':''));
     b.id='m_'+m.id;
-    let holdT=null;
-    const openMenu=ev=>{ ev.preventDefault(); msgMenu(m,b); };
-    b.addEventListener('contextmenu',openMenu);
-    b.addEventListener('pointerdown',()=>{ holdT=setTimeout(()=>msgMenu(m,b),480); });
-    ['pointerup','pointerleave','pointercancel','pointermove'].forEach(e=>b.addEventListener(e,()=>clearTimeout(holdT)));
+    let holdT=null, sx=0, sy=0, drag=false;
+    b.addEventListener('contextmenu',ev=>{ ev.preventDefault(); msgMenu(m,b); });
+    b.addEventListener('pointerdown',ev=>{
+      sx=ev.clientX; sy=ev.clientY; drag=false;
+      holdT=setTimeout(()=>{ if(!drag) msgMenu(m,b); },480);
+    });
+    b.addEventListener('pointermove',ev=>{
+      const dx=ev.clientX-sx, dy=ev.clientY-sy;
+      if(!drag && Math.abs(dx)>10 && Math.abs(dx)>Math.abs(dy)*1.5){ drag=true; clearTimeout(holdT); }
+      if(drag && dx>0){ b.style.transition='none'; b.style.transform='translateX('+Math.min(dx,72)+'px)'; }
+    });
+    const endDrag=ev=>{
+      clearTimeout(holdT);
+      if(!drag) return;
+      const dx=(ev.clientX||sx)-sx;
+      b.style.transition=''; b.style.transform='';
+      if(dx>56 && m.kind!=='sys' && !m.pending){ setReply(m); if(navigator.vibrate) navigator.vibrate(12); }
+      drag=false;
+    };
+    ['pointerup','pointercancel','pointerleave'].forEach(e=>b.addEventListener(e,endDrag));
     if(grp && !mine) b.appendChild(el('div','who',displayName(m.from)));
+    if(m.reply){
+      const q=el('div','quote');
+      q.append(el('b',null, m.reply.from===me.uid?'Вы':displayName(m.reply.from)),
+               el('span',null, m.replyText||'сообщение'));
+      q.onclick=ev=>{
+        ev.stopPropagation();
+        const n=document.getElementById('m_'+m.reply.id);
+        if(n){ n.scrollIntoView({block:'center',behavior:'smooth'}); n.classList.add('hl'); setTimeout(()=>n.classList.remove('hl'),1200); }
+        else toast('Сообщение выше по истории.',2000);
+      };
+      b.appendChild(q);
+    }
 
     if(m.kind==='text') b.appendChild(el('div','txt',m.text));
     else if(m.kind==='image'){
@@ -959,6 +1007,7 @@ function msgMenu(m, node){
     ico(S1+'<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>','Копировать',()=>copy(m.text));
     ico(S1+'<circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><path d="M20 4L8.6 15.4M20 20L8.6 8.6"/></svg>','Выделить часть',()=>selectPart(m.text));
   }
+  ico(S1+'<path d="M9 14L4 9l5-5"/><path d="M4 9h9a7 7 0 0 1 7 7v4"/></svg>','Ответить',()=>setReply(m));
   ico('<svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2l8 8-3 1-4 4-1 6-2 1-4-4-5 5-1-1 5-5-4-4 1-2 6-1 4-4z"/></svg>',
       pinned?'Открепить':'Закрепить', ()=>pinMsg(pinned?null:m));
   if(m.from===me.uid)
@@ -1130,6 +1179,7 @@ async function sendMsg(kind, payload){
   const ts=Date.now();
   const enc=await encText(key, payload.text||'');
   const row={id:rid(22), chat_id:c.id, from_uid:me.uid, ts, kind, ct:enc.ct, iv:enc.iv};
+  if(payload.reply) row.reply={id:payload.reply.id, from:payload.reply.from, kind:payload.reply.kind, ct:payload.reply.ct, iv:payload.reply.iv};
   if(payload.bytes){
     setProg(.15);
     row.blob=await putBlob(c.id,key,payload.bytes,payload.meta&&payload.meta.mime);
@@ -1152,6 +1202,18 @@ async function sendSystem(text){
   const c=chats.get(curChat); if(!c) return;
   await sb.from('messages').insert({id:rid(22), chat_id:c.id, from_uid:me.uid, ts:Date.now(), kind:'sys', plain:text});
 }
+
+let replyTo=null;
+function setReply(m){
+  replyTo={id:m.id, from:m.from, kind:m.kind, ct:m.ct, iv:m.iv, text:m.text||''};
+  const bar=$('#replyBar');
+  $('#replyWho').textContent = m.from===me.uid?'Вы':displayName(m.from);
+  const icons={image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео'};
+  $('#replyTxt').textContent = m.kind==='text'?(m.text||''):(icons[m.kind]||'Вложение');
+  bar.classList.remove('hidden');
+  $('#msgInput').focus();
+}
+function clearReply(){ replyTo=null; const b=$('#replyBar'); if(b) b.classList.add('hidden'); }
 
 const input=$('#msgInput');
 input.addEventListener('input',()=>{
@@ -1181,9 +1243,14 @@ async function doSend(){
     outbox.push({id:rid(22), chatId, text:t, ts:Date.now()});
     saveOutbox(); renderMsgs(chatId); scrollBottom();
   };
-  if(!navigator.onLine){ queue(); return; }
-  try{ await sendMsg('text',{text:t}); scrollBottom(); }
-  catch(e){ queue(); toast('Нет связи — сообщение уйдёт само, когда интернет вернётся.',3500); }
+  if(!navigator.onLine){ queue(); toast('Нет интернета — сообщение уйдёт, когда связь вернётся.',3000); return; }
+  try{ await sendMsg('text',{text:t, reply:replyTo}); clearReply(); scrollBottom(); }
+  catch(e){
+    queue(); clearReply();
+    const msg=(e&&(e.message||e.details||e.hint))||String(e);
+    toast('ОШИБКА ОТПРАВКИ: '+msg, 12000);
+    console.error('sendMsg failed:', e);
+  }
 }
 
 /* ---------- вложения ---------- */
@@ -1671,6 +1738,7 @@ function fallbackCopy(t){
   try{ document.execCommand('copy'); toast('Скопировано',1800); }catch(e){ toast('Скопируйте вручную'); }
   i.remove();
 }
+$('#replyOff').onclick=clearReply;
 $('#searchInput').oninput=renderChatList;
 $('#btnBack').onclick=()=>{
   $('#main').classList.remove('open');
