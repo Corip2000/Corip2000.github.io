@@ -827,10 +827,20 @@ async function openChat(id){
   curChat=id;
   seenAt[id]=Date.now(); S.set('wa_seen',JSON.stringify(seenAt));
   unread.delete(id); updateTitle();
+  const prev=curChat;
+  if(prev && prev!==id){
+    const v=$('#msgInput').value;
+    if(v.trim()) drafts[prev]=v; else delete drafts[prev];
+    S.set('wa_drafts',JSON.stringify(drafts));
+  }
+  clearReply();
   const nc=$('#noChat'); if(nc) nc.classList.add('hidden');
   $('#chatTop').style.display='flex'; $('#composer').style.display='flex';
   $('#main').classList.add('open'); $('#btnBack').style.display = innerWidth<=820?'grid':'none';
   paintHeader(); renderChatList();
+  const ip=$('#msgInput');
+  ip.value = drafts[id] || '';
+  ip.style.height='auto'; ip.dispatchEvent(new Event('input'));
   $('#msgs').innerHTML='<div class="empty">Расшифровываем историю…</div>';
   if(!msgCache.has(id)) msgCache.set(id,new Map());
 
@@ -859,7 +869,11 @@ async function openChat(id){
         if(curChat===id) renderMsgs(id);
       })
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'messages'},
-      ({old})=>{ const cache=msgCache.get(id); if(cache && old && cache.delete(old.id) && curChat===id) renderMsgs(id); })
+      ({old})=>{
+        if(!old || !old.id) return;
+        msgCache.forEach(cache=>cache.delete(old.id));
+        if(curChat) renderMsgs(curChat);
+      })
     .subscribe();
 }
 async function markDelivered(ids){
@@ -907,7 +921,7 @@ function paintHeader(){
 function renderMsgs(id){
   const box=$('#msgs'); const near = box.scrollHeight-box.scrollTop-box.clientHeight < 200;
   box.innerHTML='';
-  const items=[...msgCache.get(id).values()].concat(outboxFor(id)).sort((a,b)=>a.ts-b.ts);
+  const items=[...msgCache.get(id).values()].filter(m=>!isHidden(m.id)).concat(outboxFor(id)).sort((a,b)=>a.ts-b.ts);
   if(!items.length){ box.innerHTML='<div class="empty" style="margin:auto">Сообщений пока нет. Напишите первым.</div>'; return; }
   let lastDay='';
   const grp=chats.get(id).type==='group';
@@ -927,14 +941,14 @@ function renderMsgs(id){
     b.addEventListener('pointermove',ev=>{
       const dx=ev.clientX-sx, dy=ev.clientY-sy;
       if(!drag && Math.abs(dx)>10 && Math.abs(dx)>Math.abs(dy)*1.5){ drag=true; clearTimeout(holdT); }
-      if(drag && dx>0){ b.style.transition='none'; b.style.transform='translateX('+Math.min(dx,72)+'px)'; }
+      if(drag){ b.style.transition='none'; b.style.transform='translateX('+Math.max(-72,Math.min(dx,72))+'px)'; }
     });
     const endDrag=ev=>{
       clearTimeout(holdT);
       if(!drag) return;
       const dx=(ev.clientX||sx)-sx;
       b.style.transition=''; b.style.transform='';
-      if(dx>56 && m.kind!=='sys' && !m.pending){ setReply(m); if(navigator.vibrate) navigator.vibrate(12); }
+      if(Math.abs(dx)>48 && m.kind!=='sys' && !m.pending){ setReply(m); if(navigator.vibrate) navigator.vibrate(12); }
       drag=false;
     };
     ['pointerup','pointercancel','pointerleave'].forEach(e=>b.addEventListener(e,endDrag));
@@ -1056,12 +1070,31 @@ async function pinMsg(m){
   c.pinned=pinned; paintPin(c);
   toast(m?'Сообщение закреплено':'Откреплено',2000);
 }
-async function delMsg(m){
-  const c=chats.get(curChat);
-  const {error}=await sb.from('messages').delete().eq('id',m.id);
-  if(error) return toast('Ошибка: '+error.message);
-  msgCache.get(c.id).delete(m.id); renderMsgs(c.id);
-  if(c.pinned && c.pinned.id===m.id) pinMsg(null);
+let hiddenMsgs = JSON.parse(S.get('wa_hidden')||'[]');
+const isHidden = id => hiddenMsgs.indexOf(id)>=0;
+function delMsg(m){
+  const c=chats.get(curChat); if(!c) return;
+  const mine=m.from===me.uid;
+  const {m:box,close}=modal('<h3>Удалить сообщение?</h3><p class="sub">Выберите, у кого его убрать.</p>'
+    +'<button class="btn ghost" id="dMe">Удалить только у меня</button>'
+    +(mine?'<div style="height:8px"></div><button class="btn danger" id="dAll">Удалить у всех</button>':'')
+    +'<div style="height:8px"></div><button class="btn ghost" id="dNo">Отмена</button>');
+  box.querySelector('#dNo').onclick=close;
+  box.querySelector('#dMe').onclick=()=>{
+    hiddenMsgs.push(m.id); S.set('wa_hidden',JSON.stringify(hiddenMsgs));
+    renderMsgs(c.id); close(); toast('Убрано у вас. У собеседника осталось.',2600);
+  };
+  const all=box.querySelector('#dAll');
+  if(all) all.onclick=async()=>{
+    all.disabled=true; all.textContent='Удаляем…';
+    const cache=msgCache.get(c.id);
+    if(cache) cache.delete(m.id);
+    renderMsgs(c.id);                                   // мгновенно убираем у себя
+    const {error}=await sb.from('messages').delete().eq('id',m.id);
+    if(error){ toast('Ошибка: '+error.message); }
+    if(c.pinned && c.pinned.id===m.id) pinMsg(null);
+    close();
+  };
 }
 async function clearChat(c, close){
   const {m,close:cl}=modal('<h3>Очистить историю?</h3>'
@@ -1186,7 +1219,12 @@ async function sendMsg(kind, payload){
     row.meta=payload.meta||{};
     setProg(.75);
   }
-  const {error}=await sb.from('messages').insert(row);
+  let {error}=await sb.from('messages').insert(row);
+  if(error && row.reply && /reply|schema cache|column/i.test(error.message||'')){
+    delete row.reply;                       // база ещё без колонки — отправляем без цитаты
+    ({error}=await sb.from('messages').insert(row));
+    if(!error) toast('Цитата не сохранена: выполните SQL с колонкой reply.',5000);
+  }
   if(error) throw error;
   await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
@@ -1203,6 +1241,7 @@ async function sendSystem(text){
   await sb.from('messages').insert({id:rid(22), chat_id:c.id, from_uid:me.uid, ts:Date.now(), kind:'sys', plain:text});
 }
 
+let drafts = JSON.parse(S.get('wa_drafts')||'{}');
 let replyTo=null;
 function setReply(m){
   replyTo={id:m.id, from:m.from, kind:m.kind, ct:m.ct, iv:m.iv, text:m.text||''};
@@ -1217,6 +1256,10 @@ function clearReply(){ replyTo=null; const b=$('#replyBar'); if(b) b.classList.a
 
 const input=$('#msgInput');
 input.addEventListener('input',()=>{
+  if(curChat){
+    if(input.value.trim()) drafts[curChat]=input.value; else delete drafts[curChat];
+    S.set('wa_drafts',JSON.stringify(drafts));
+  }
   input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,120)+'px';
   const has=input.value.trim().length>0;
   $('#btnSend').classList.toggle('hidden',!has); $('#btnMic').classList.toggle('hidden',has);
@@ -1237,6 +1280,7 @@ $('#btnSend').onclick=doSend;
 async function doSend(){
   const t=input.value.trim(); if(!t) return;
   const chatId=curChat; if(!chatId) return;
+  delete drafts[chatId]; S.set('wa_drafts',JSON.stringify(drafts));
   input.value=''; input.style.height='auto'; input.dispatchEvent(new Event('input'));
   input.focus();                                    // клавиатура остаётся открытой
   const queue=()=>{
@@ -1267,19 +1311,45 @@ $('#btnAttach').onclick=e=>{
 $('#imgPick').onchange=async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   try{
-    toast('Сжимаем фото…',1600);
+    toast('Сжимаем фото…',1400);
     const r=await compress(f);
     if(r.bytes.length>MAX_FILE) return toast(LIMIT_MSG,7000);
-    await sendMsg('image',{bytes:r.bytes,meta:{name:f.name,size:r.bytes.length,mime:r.mime,w:r.w,h:r.h}});
+    photoPreview(r, f.name);
   }catch(err){ setProg(0); toast('Ошибка: '+err.message); }
 };
+function photoPreview(r, name){
+  const url=URL.createObjectURL(new Blob([r.bytes],{type:r.mime}));
+  const quoted = replyTo ? '<div class="quote" style="cursor:default"><b>'+esc(replyTo.from===me.uid?'Вы':displayName(replyTo.from))
+      +'</b><span>'+esc(replyTo.text||'сообщение')+'</span></div>' : '';
+  const {m,close}=modal('<h3>Отправить фото</h3><p class="sub">'+sizeStr(r.bytes.length)+' · можно добавить подпись</p>'
+    +quoted
+    +'<img src="'+url+'" style="width:100%;border-radius:12px;display:block;margin-bottom:12px">'
+    +'<textarea class="inp" id="cap" rows="2" placeholder="Подпись (необязательно)" style="resize:vertical"></textarea>'
+    +'<div style="height:12px"></div><button class="btn" id="sendPh">Отправить</button>'
+    +'<div style="height:8px"></div><button class="btn ghost" id="noPh">Отмена</button>');
+  const done=()=>{ URL.revokeObjectURL(url); close(); };
+  m.querySelector('#noPh').onclick=done;
+  m.querySelector('#cap').focus();
+  m.querySelector('#sendPh').onclick=async()=>{
+    const b=m.querySelector('#sendPh'); b.disabled=true; b.textContent='Отправляем…';
+    const cap=m.querySelector('#cap').value.trim();
+    const rep=replyTo;
+    done(); clearReply();
+    try{
+      await sendMsg('image',{bytes:r.bytes, text:cap, reply:rep,
+        meta:{name:name||'photo.jpg', size:r.bytes.length, mime:r.mime, w:r.w, h:r.h}});
+      scrollBottom();
+    }catch(err){ setProg(0); toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),10000); }
+  };
+}
 $('#filePick').onchange=async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
   if(f.size>MAX_FILE) return toast(LIMIT_MSG,7000);
   try{
     const bytes=new Uint8Array(await f.arrayBuffer());
     const kind = f.type.indexOf('video/')===0 ? 'video' : f.type.indexOf('audio/')===0 ? 'audio' : 'file';
-    await sendMsg(kind,{bytes,meta:{name:f.name,size:f.size,mime:f.type||'application/octet-stream'}});
+    const rep=replyTo; clearReply();
+    await sendMsg(kind,{bytes,reply:rep,meta:{name:f.name,size:f.size,mime:f.type||'application/octet-stream'}});
   }catch(err){ setProg(0); toast('Ошибка: '+err.message); }
 };
 async function compress(file, maxDim, target){
@@ -1321,7 +1391,8 @@ $('#btnMic').onclick=async()=>{
       if(blob.size>MAX_FILE) return toast(LIMIT_MSG,7000);
       try{
         const bytes=new Uint8Array(await blob.arrayBuffer());
-        await sendMsg('audio',{bytes,meta:{name:'voice',size:blob.size,mime:blob.type,dur:Math.round((Date.now()-recStart)/1000)}});
+        const rep=replyTo; clearReply();
+        await sendMsg('audio',{bytes,reply:rep,meta:{name:'voice',size:blob.size,mime:blob.type,dur:Math.round((Date.now()-recStart)/1000)}});
       }catch(e){ setProg(0); toast('Ошибка: '+e.message); }
     };
     rec.start(); recStart=Date.now();
