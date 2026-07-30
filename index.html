@@ -649,8 +649,12 @@ async function subscribePush(){
     if(!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:want});
     const j = sub.toJSON();
     const dev=deviceId();
-    const {error} = await sb.from('push_subs').upsert(
-      {endpoint:j.endpoint, uid:me.uid, sub:j, device:dev, updated_at:Date.now()},{onConflict:'endpoint'});
+    const row={endpoint:j.endpoint, uid:me.uid, sub:j, device:dev, updated_at:Date.now()};
+    let {error} = await sb.from('push_subs').upsert(row,{onConflict:'endpoint'});
+    if(error && /device|column|schema cache/i.test(error.message||'')){
+      delete row.device;                       // база ещё без колонки — не повод ломать подписку
+      ({error} = await sb.from('push_subs').upsert(row,{onConflict:'endpoint'}));
+    }
     if(error) return {ok:false, why:error.message};
     // выкидываем прошлые подписки этого же устройства — они мертвы и только мешают
     try{ await sb.from('push_subs').delete().eq('uid',me.uid).eq('device',dev).neq('endpoint',j.endpoint); }catch(e){}
