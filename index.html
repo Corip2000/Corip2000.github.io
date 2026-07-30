@@ -740,7 +740,7 @@ async function notify(title, body, tag, icon){
   // Метка обязана быть разной: с одинаковой Android беззвучно подменяет
   // предыдущее уведомление, и кажется, что новые перестали приходить.
   const opts={ body:String(body==null?'':body), icon:icon||NOTIF_ICON, badge:NOTIF_ICON,
-               tag:'wa_'+(tag||'msg')+'_'+Date.now(), renotify:true, timestamp:Date.now() };
+               tag:'wa_'+(tag||('m'+Date.now())), renotify:true, timestamp:Date.now() };
   try{ if(navigator.vibrate) navigator.vibrate([120,60,120]); }catch(e){}
   try{
     // Android Chrome показывает уведомления только через service worker
@@ -773,7 +773,7 @@ function watchFeed(){
       if(row.kind==='text'){ try{ body=await decText(await chatKey(c),row); }catch(e){ body='Зашифрованное сообщение'; } }
       else body=icons[row.kind]||'Вложение';
       const who=displayName(row.from_uid);
-      notify(c.type==='group'?(c.name||'Группа'):who, (c.type==='group'?who+': ':'')+body, c.id,
+      notify(c.type==='group'?(c.name||'Группа'):who, (c.type==='group'?who+': ':'')+body, row.id,
              (profiles.get(row.from_uid)||{}).avatar||null);
     })
     .subscribe();
@@ -1460,7 +1460,7 @@ async function sendMsg(kind, payload, toChat){
   const myAv=(profiles.get(me.uid)||{}).avatar||null;
   pushTo(c.members.filter(u=>u!==me.uid),
          c.type==='group'?(c.name||'Группа'):me.name,
-         (c.type==='group'?me.name+': ':'')+(kinds[kind]||'Новое сообщение'), c.id,
+         (c.type==='group'?me.name+': ':'')+(kinds[kind]||'Новое сообщение'), row.id,
          { chatId:c.id, kind:kind, icon:myAv, sender:me.name,
            group:(c.type==='group'?(c.name||'Группа'):null),
            ct:(kind==='text'?enc.ct:null), iv:(kind==='text'?enc.iv:null) });

@@ -66,8 +66,18 @@ self.addEventListener('push', e => {
       if (text) body = d.group && d.sender ? d.sender + ': ' + text : text;
     }
 
-    // Метка обязана быть разной, иначе Android беззвучно подменяет предыдущее уведомление
-    const tag = 'wa_' + (d.tag || 'msg') + '_' + Date.now();
+    // Метка = идентификатор сообщения. Разная для разных сообщений (иначе Android
+    // беззвучно подменяет предыдущее) и одинаковая для локального показа и push,
+    // чтобы одно и то же сообщение не пришло дважды.
+    const tag = 'wa_' + (d.tag || ('m' + Date.now()));
+    const decoded = body !== String(d.body || 'Новое сообщение');
+
+    // Если приложение уже показало это сообщение с настоящим текстом,
+    // не затираем его обобщённой заглушкой.
+    try {
+      const same = await self.registration.getNotifications({ tag });
+      if (same.length && !decoded) return;
+    } catch (err) {}
 
     await self.registration.showNotification(String(d.title), {
       body: body,
