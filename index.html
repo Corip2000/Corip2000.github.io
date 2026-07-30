@@ -638,7 +638,8 @@ async function subscribePush(){
     const j = sub.toJSON();
     const {error} = await sb.from('push_subs').upsert({endpoint:j.endpoint, uid:me.uid, sub:j, updated_at:Date.now()},{onConflict:'endpoint'});
     if(error) return {ok:false, why:error.message};
-    return {ok:true};
+    let host='?'; try{ host=new URL(j.endpoint).host; }catch(e){}
+    return {ok:true, host:host};
   }catch(e){ return {ok:false, why:e.message||String(e)}; }
 }
 let lastPushErr=null;
@@ -1878,6 +1879,7 @@ $('#btnSettings').onclick=()=>{
     +'<pre id="diagOut" class="hidden" style="white-space:pre-wrap;font-size:11.5px;background:#F6F3FC;border-radius:10px;padding:12px;margin-top:10px;line-height:1.6"></pre>'
     +'<div style="height:8px"></div><button class="btn ghost" id="pushTest">Проверить доставку при закрытом сайте</button>'
     +'<div id="pushOut" class="note" style="margin-top:6px"></div>'
+    +'<div style="height:6px"></div><button class="btn ghost" id="swReset" style="font-size:13.5px;padding:10px">Перезапустить фоновый модуль</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="howTo">Как получать сообщения всегда</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="blkList">Заблокированные ('+blocked.length+')</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="expK">Ключ для входа на другом устройстве</button>'
@@ -1965,27 +1967,44 @@ $('#btnSettings').onclick=()=>{
       out.innerHTML='Подписка не создалась: '+esc(s.why);
       b.disabled=false; b.textContent='Проверить доставку при закрытом сайте'; return;
     }
+    out.innerHTML='Служба доставки: <b>'+esc(s.host||'?')+'</b><br>';
     const r=await pushTo([me.uid],'WhereApp','Проверка доставки при закрытом сайте');
+    const head='Служба доставки: <b>'+esc(s.host||'?')+'</b><br>';
     if(r.error){
       let hint='';
       if(r.status===404) hint='Функция не развёрнута. Supabase → Edge Functions → Deploy a new function, имя ровно <b>push</b>.';
       else if(r.status===401 || r.status===403) hint='Откройте Edge Functions → push → Details и выключите <b>Verify JWT</b>.';
       else if(r.status===500) hint='Функция упала. Проверьте секреты VAPID_PUBLIC и VAPID_PRIVATE и посмотрите вкладку Logs у функции.';
       else if(r.network) hint='Запрос вообще не ушёл: функции нет, либо провайдер режет адрес.<br>Проверьте вручную, открыв в браузере:<br><span style="word-break:break-all">'+esc(PUSH_URL)+'</span>';
-      out.innerHTML='<b>'+esc(r.error)+'</b><br>'+hint;
+      out.innerHTML=head+'<b>'+esc(r.error)+'</b><br>'+hint;
     }else if(r.sent===0){
       const e0=(r.errors&&r.errors[0])||null;
-      out.innerHTML = e0
+      out.innerHTML = head + (e0
         ? 'Служба доставки отклонила: <b>'+esc(String(e0.status||''))+' '+esc(e0.why||'')+'</b><br>'
           +(String(e0.status)==='403'?'Ключи VAPID не совпадают: проверьте секреты функции.':'')
           +(String(e0.status)==='401'?'Секреты VAPID не заданы или неверны.':'')
-        : ('Функция ответила, но отправлять некому. '+esc(r.note||'Проверьте таблицу push_subs.'));
+        : ('Функция ответила, но отправлять некому. '+esc(r.note||'Проверьте таблицу push_subs.')));
     }else{
-      out.innerHTML='Отправлено: '+r.sent+' из '+(r.total||r.sent)+'.'
+      out.innerHTML=head+'Отправлено: '+r.sent+' из '+(r.total||r.sent)+'.'
         + (r.errors&&r.errors.length ? '<br>Часть не ушла: '+esc(JSON.stringify(r.errors).slice(0,180)) : '')
         + '<br>Если уведомление не пришло — дело в настройках телефона, откройте «Как получать сообщения всегда».';
     }
     b.disabled=false; b.textContent='Проверить доставку при закрытом сайте';
+  };
+  m.querySelector('#swReset').onclick=async()=>{
+    const b=m.querySelector('#swReset'); b.disabled=true; b.textContent='Обновляем…';
+    try{
+      const regs=await navigator.serviceWorker.getRegistrations();
+      for(const r of regs){
+        try{ const s=await r.pushManager.getSubscription(); if(s) await s.unsubscribe(); }catch(e){}
+        await r.unregister();
+      }
+      swReg=null;
+      await initSW();
+      const s=await subscribePush();
+      toast(s.ok?'Фоновый модуль перезапущен, подписка создана заново.':'Не вышло: '+s.why, 5000);
+    }catch(e){ toast('Ошибка: '+(e.message||e),5000); }
+    b.disabled=false; b.textContent='Перезапустить фоновый модуль';
   };
   m.querySelector('#howTo').onclick=()=>{
     modal('<h3>Чтобы сообщения приходили всегда</h3>'
