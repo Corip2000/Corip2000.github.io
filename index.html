@@ -421,7 +421,7 @@ async function makeKeys(){
 const loadPriv = jwk => crypto.subtle.importKey('jwk',JSON.parse(jwk),{name:'ECDH',namedCurve:'P-256'},false,['deriveKey']);
 const loadPub  = s   => crypto.subtle.importKey('raw',unb64(s),{name:'ECDH',namedCurve:'P-256'},false,[]);
 async function sharedKey(pubB64){
-  return crypto.subtle.deriveKey({name:'ECDH',public:await loadPub(pubB64)},myPriv,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  return crypto.subtle.deriveKey({name:'ECDH',public:await loadPub(pubB64)},myPriv,{name:'AES-GCM',length:256},true,['encrypt','decrypt']);
 }
 async function encBytes(key,bytes){
   const iv=crypto.getRandomValues(new Uint8Array(12));
@@ -439,6 +439,26 @@ async function encRaw(key,bytes){
 const decRaw = (key,buf,iv)=>crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(iv)},key,buf);
 const encText = (k,s)=>encBytes(k,new TextEncoder().encode(s));
 const decText = async(k,o)=>new TextDecoder().decode(await decBytes(k,o));
+
+/* ---------- ключи чатов для фонового модуля ----------
+   Фоновый модуль не видит localStorage, но видит IndexedDB.
+   Кладём туда сырые ключи чатов, чтобы уведомление могло
+   расшифровать текст прямо на устройстве — сервер по-прежнему
+   получает только шифротекст. */
+function idbOpen(){
+  return new Promise((ok,no)=>{
+    const r=indexedDB.open('whereapp',1);
+    r.onupgradeneeded=()=>{ if(!r.result.objectStoreNames.contains('keys')) r.result.createObjectStore('keys'); };
+    r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error);
+  });
+}
+async function idbPut(k,v){
+  try{
+    const db=await idbOpen();
+    await new Promise((ok,no)=>{ const t=db.transaction('keys','readwrite');
+      t.objectStore('keys').put(v,k); t.oncomplete=ok; t.onerror=()=>no(t.error); });
+  }catch(e){}
+}
 
 /* ---------- состояние ---------- */
 let sb, me={uid:null,name:'',code:'',pub:''};
@@ -664,13 +684,14 @@ async function subscribePush(){
 }
 let lastPushErr=null;
 const PUSH_URL = SUPA_URL + '/functions/v1/push';
-async function pushTo(uids, title, body, tag){
+async function pushTo(uids, title, body, tag, extra){
   if(!uids || !uids.length) return {sent:0};
   try{
     const r = await fetch(PUSH_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
-      body: JSON.stringify({to:uids, title:String(title||'WhereApp'), body:String(body||'Новое сообщение'), tag:String(tag||'msg')})
+      body: JSON.stringify(Object.assign({to:uids, title:String(title||'WhereApp'),
+        body:String(body||'Новое сообщение'), tag:String(tag||'msg')}, extra||{}))
     });
     const txt = await r.text();
     if(!r.ok){ lastPushErr='HTTP '+r.status+': '+txt.slice(0,180); return {error:lastPushErr, status:r.status}; }
@@ -713,12 +734,12 @@ function notifyBar(){
     else if(r==='default') toast('Окно запроса закрылось без ответа. Повторить можно в Настройках.',6000);
   };
 }
-async function notify(title, body, tag){
+async function notify(title, body, tag, icon){
   beep();
   if(!window.Notification || Notification.permission!=='granted') return;
   // Метка обязана быть разной: с одинаковой Android беззвучно подменяет
   // предыдущее уведомление, и кажется, что новые перестали приходить.
-  const opts={ body:String(body==null?'':body), icon:NOTIF_ICON, badge:NOTIF_ICON,
+  const opts={ body:String(body==null?'':body), icon:icon||NOTIF_ICON, badge:NOTIF_ICON,
                tag:'wa_'+(tag||'msg')+'_'+Date.now(), renotify:true, timestamp:Date.now() };
   try{ if(navigator.vibrate) navigator.vibrate([120,60,120]); }catch(e){}
   try{
@@ -752,7 +773,8 @@ function watchFeed(){
       if(row.kind==='text'){ try{ body=await decText(await chatKey(c),row); }catch(e){ body='Зашифрованное сообщение'; } }
       else body=icons[row.kind]||'Вложение';
       const who=displayName(row.from_uid);
-      notify(c.type==='group'?(c.name||'Группа'):who, (c.type==='group'?who+': ':'')+body, c.id);
+      notify(c.type==='group'?(c.name||'Группа'):who, (c.type==='group'?who+': ':'')+body, c.id,
+             (profiles.get(row.from_uid)||{}).avatar||null);
     })
     .subscribe();
 }
@@ -832,13 +854,15 @@ async function chatKey(c){
     if(!w) throw new Error('нет ключа группы');
     const wrapper=await getProfile(w.by);
     const raw=await decBytes(await sharedKey(wrapper.pub), w);
-    k=await crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},false,['encrypt','decrypt']);
+    k=await crypto.subtle.importKey('raw',raw,{name:'AES-GCM'},true,['encrypt','decrypt']);
   }else{
     const p=await getProfile(c.members.find(u=>u!==me.uid));
     if(!p.pub) throw new Error('у собеседника нет ключа');
     k=await sharedKey(p.pub);
   }
-  keyCache.set(c.id,k); return k;
+  keyCache.set(c.id,k);
+  try{ idbPut(c.id, new Uint8Array(await crypto.subtle.exportKey('raw',k))); }catch(e){}
+  return k;
 }
 async function groupRawKey(c){
   const w=c.gkeys[me.uid];
@@ -1433,9 +1457,13 @@ async function sendMsg(kind, payload, toChat){
   setProg(0);
   // На сервер уходит только факт сообщения, без текста — переписка остаётся зашифрованной
   const kinds={text:'Новое сообщение',image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео'};
+  const myAv=(profiles.get(me.uid)||{}).avatar||null;
   pushTo(c.members.filter(u=>u!==me.uid),
          c.type==='group'?(c.name||'Группа'):me.name,
-         (c.type==='group'?me.name+': ':'')+(kinds[kind]||'Новое сообщение'), c.id);
+         (c.type==='group'?me.name+': ':'')+(kinds[kind]||'Новое сообщение'), c.id,
+         { chatId:c.id, kind:kind, icon:myAv, sender:me.name,
+           group:(c.type==='group'?(c.name||'Группа'):null),
+           ct:(kind==='text'?enc.ct:null), iv:(kind==='text'?enc.iv:null) });
 }
 async function sendSystem(text){
   const c=chats.get(curChat); if(!c) return;
