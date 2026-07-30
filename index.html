@@ -653,6 +653,7 @@ function deviceId(){
   if(!d){ d='dev_'+rid(12); S.set('wa_dev',d); }
   return d;
 }
+let pushReady=false;
 async function subscribePush(){
   try{
     const reg = swReg || await initSW();
@@ -679,6 +680,7 @@ async function subscribePush(){
     // выкидываем прошлые подписки этого же устройства — они мертвы и только мешают
     try{ await sb.from('push_subs').delete().eq('uid',me.uid).eq('device',dev).neq('endpoint',j.endpoint); }catch(e){}
     let host='?'; try{ host=new URL(j.endpoint).host; }catch(e){}
+    pushReady=true;
     return {ok:true, host:host};
   }catch(e){ return {ok:false, why:e.message||String(e)}; }
 }
@@ -737,6 +739,9 @@ function notifyBar(){
 async function notify(title, body, tag, icon){
   beep();
   if(!window.Notification || Notification.permission!=='granted') return;
+  // Когда push подписан, уведомление покажет фоновый модуль.
+  // Показать здесь тоже — значит получить два одинаковых.
+  if(pushReady && document.hidden) return;
   // Метка обязана быть разной: с одинаковой Android беззвучно подменяет
   // предыдущее уведомление, и кажется, что новые перестали приходить.
   const opts={ body:String(body==null?'':body), icon:icon||NOTIF_ICON, badge:NOTIF_ICON,
@@ -2042,6 +2047,24 @@ $('#btnSettings').onclick=()=>{
     }
     b.disabled=false; b.textContent='Проверить доставку при закрытом сайте';
   };
+  (async()=>{
+    try{
+      const {data}=await sb.from('push_subs').select('endpoint').eq('uid',me.uid);
+      if(data && data.length>1){
+        const o=m.querySelector('#pushOut');
+        o.innerHTML='Подписок на этот аккаунт: <b>'+data.length+'</b>. Лишние могут задваивать уведомления. '
+          +'<a href="#" id="cleanSubs" style="color:var(--p-dark)">Оставить только это устройство</a>';
+        m.querySelector('#cleanSubs').onclick=async(ev)=>{
+          ev.preventDefault();
+          const reg=swReg||await initSW();
+          const s=reg&&reg.pushManager?await reg.pushManager.getSubscription():null;
+          if(!s) return toast('Сначала перезапустите фоновый модуль.',4000);
+          await sb.from('push_subs').delete().eq('uid',me.uid).neq('endpoint',s.endpoint);
+          o.textContent='Готово, осталась одна подписка.';
+        };
+      }
+    }catch(e){}
+  })();
   m.querySelector('#swReset').onclick=async()=>{
     const b=m.querySelector('#swReset'); b.disabled=true; b.textContent='Обновляем…';
     try{
