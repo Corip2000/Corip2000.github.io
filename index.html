@@ -740,7 +740,7 @@ async function notify(title, body, tag, icon){
   // Метка обязана быть разной: с одинаковой Android беззвучно подменяет
   // предыдущее уведомление, и кажется, что новые перестали приходить.
   const opts={ body:String(body==null?'':body), icon:icon||NOTIF_ICON, badge:NOTIF_ICON,
-               tag:'wa_'+(tag||('m'+Date.now())), renotify:true, timestamp:Date.now() };
+               tag:'wa_'+(tag||('m'+Date.now())) };
   try{ if(navigator.vibrate) navigator.vibrate([120,60,120]); }catch(e){}
   try{
     // Android Chrome показывает уведомления только через service worker
