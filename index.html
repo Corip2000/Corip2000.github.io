@@ -572,6 +572,13 @@ function startApp(){
   $('#myCode').textContent = me.code.replace(/(\d{3})(\d{3})(\d{4})/,'$1 $2 $3');
   profiles.set(me.uid, Object.assign({id:me.uid}, profiles.get(me.uid)||{}, {name:me.name,pub:me.pub,code:me.code}));
   initSW().then(()=>{ if(window.Notification && Notification.permission==='granted') subscribePush(); });
+  let lastSub=0;
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden) return;
+    if(Date.now()-lastSub < 6*3600*1000) return;      // не чаще раза в 6 часов
+    lastSub=Date.now();
+    if(window.Notification && Notification.permission==='granted') subscribePush();
+  });
   loadChats(); watchChats(); watchCalls(); watchFeed();
   setInterval(()=>{ if(!document.hidden) loadChats(); }, 20000);
   flushOutbox();
@@ -621,6 +628,11 @@ function urlB64ToU8(s){
   for(let i=0;i<raw.length;i++) a[i]=raw.charCodeAt(i);
   return a;
 }
+function deviceId(){
+  let d=S.get('wa_dev');
+  if(!d){ d='dev_'+rid(12); S.set('wa_dev',d); }
+  return d;
+}
 async function subscribePush(){
   try{
     const reg = swReg || await initSW();
@@ -636,8 +648,12 @@ async function subscribePush(){
     }
     if(!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:want});
     const j = sub.toJSON();
-    const {error} = await sb.from('push_subs').upsert({endpoint:j.endpoint, uid:me.uid, sub:j, updated_at:Date.now()},{onConflict:'endpoint'});
+    const dev=deviceId();
+    const {error} = await sb.from('push_subs').upsert(
+      {endpoint:j.endpoint, uid:me.uid, sub:j, device:dev, updated_at:Date.now()},{onConflict:'endpoint'});
     if(error) return {ok:false, why:error.message};
+    // выкидываем прошлые подписки этого же устройства — они мертвы и только мешают
+    try{ await sb.from('push_subs').delete().eq('uid',me.uid).eq('device',dev).neq('endpoint',j.endpoint); }catch(e){}
     let host='?'; try{ host=new URL(j.endpoint).host; }catch(e){}
     return {ok:true, host:host};
   }catch(e){ return {ok:false, why:e.message||String(e)}; }
