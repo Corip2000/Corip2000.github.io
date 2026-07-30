@@ -452,6 +452,11 @@ function idbOpen(){
     r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error);
   });
 }
+/* Мост в android-оболочку: она умеет показывать уведомления при закрытом
+   приложении, но для расшифровки текста ей нужны те же ключи. */
+const NATIVE = (typeof window!=='undefined' && window.WhereAppNative) ? window.WhereAppNative : null;
+function nativeCall(fn, ...args){ try{ if(NATIVE && NATIVE[fn]) NATIVE[fn](...args); }catch(e){} }
+
 async function idbPut(k,v){
   try{
     const db=await idbOpen();
@@ -599,6 +604,7 @@ function startApp(){
     lastSub=Date.now();
     if(window.Notification && Notification.permission==='granted') subscribePush();
   });
+  nativeCall('setUid', me.uid);
   loadChats(); watchChats(); watchCalls(); watchFeed();
   setInterval(()=>{ if(!document.hidden) loadChats(); }, 20000);
   flushOutbox();
@@ -739,8 +745,9 @@ function notifyBar(){
 async function notify(title, body, tag, icon){
   beep();
   if(!window.Notification || Notification.permission!=='granted') return;
-  // Когда push подписан, уведомление покажет фоновый модуль.
-  // Показать здесь тоже — значит получить два одинаковых.
+  // Когда push подписан или мы внутри android-оболочки, уведомление
+  // покажет другой слой. Показать здесь тоже — значит получить два одинаковых.
+  if(NATIVE) return;
   if(pushReady && document.hidden) return;
   // Метка обязана быть разной: с одинаковой Android беззвучно подменяет
   // предыдущее уведомление, и кажется, что новые перестали приходить.
@@ -804,7 +811,9 @@ async function getProfile(uid){
   if(profiles.has(uid)) return profiles.get(uid);
   const {data}=await sb.from('profiles').select('*').eq('id',uid).maybeSingle();
   const p=data||{name:'Неизвестный',pub:null};
-  profiles.set(uid,p); return p;
+  profiles.set(uid,p);
+  if(p.name) nativeCall('saveName', uid, p.name);
+  return p;
 }
 
 /* ============================================================
@@ -866,7 +875,11 @@ async function chatKey(c){
     k=await sharedKey(p.pub);
   }
   keyCache.set(c.id,k);
-  try{ idbPut(c.id, new Uint8Array(await crypto.subtle.exportKey('raw',k))); }catch(e){}
+  try{
+    const raw=new Uint8Array(await crypto.subtle.exportKey('raw',k));
+    idbPut(c.id, raw);
+    nativeCall('saveKey', c.id, b64(raw));
+  }catch(e){}
   return k;
 }
 async function groupRawKey(c){
@@ -930,6 +943,7 @@ async function openChat(id){
   const nc=$('#noChat'); if(nc) nc.classList.add('hidden');
   $('#chatTop').style.display='flex'; $('#composer').style.display='flex';
   $('#main').classList.add('open'); $('#btnBack').style.display = innerWidth<=820?'grid':'none';
+  nativeCall('setActiveChat', id);
   paintHeader(); renderChatList();
   const ip=$('#msgInput');
   ip.value = drafts[id] || '';
@@ -1953,6 +1967,16 @@ $('#btnSettings').onclick=()=>{
   paintAv(m.querySelector('#avBox'), me.uid, initials(me.name));
   const nb=m.querySelector('#notifBtn');
   const refreshNb=()=>{
+    if(NATIVE){
+      nb.textContent='Уведомления показывает приложение ✓';
+      nb.disabled=true;
+      const po=m.querySelector('#pushOut');
+      if(po) po.innerHTML='Вы в приложении WhereApp. Уведомления приходят через постоянную службу — '
+        +'ту, что висит в шторке как «WhereApp на связи». Проверка ниже относится только к сайту в браузере.';
+      const pt=m.querySelector('#pushTest'); if(pt){ pt.disabled=true; pt.textContent='Не требуется в приложении'; }
+      const sr=m.querySelector('#swReset'); if(sr) sr.style.display='none';
+      return;
+    }
     if(!window.Notification){ nb.textContent='Браузер не поддерживает уведомления'; nb.disabled=true; return; }
     if(Notification.permission==='granted') nb.textContent='Уведомления включены ✓';
     else if(Notification.permission==='denied') nb.textContent='Уведомления запрещены в браузере';
