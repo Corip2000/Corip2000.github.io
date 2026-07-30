@@ -664,13 +664,13 @@ async function subscribePush(){
 }
 let lastPushErr=null;
 const PUSH_URL = SUPA_URL + '/functions/v1/push';
-async function pushTo(uids, title, body){
+async function pushTo(uids, title, body, tag){
   if(!uids || !uids.length) return {sent:0};
   try{
     const r = await fetch(PUSH_URL, {
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY},
-      body: JSON.stringify({to:uids, title:String(title||'WhereApp'), body:String(body||'Новое сообщение')})
+      body: JSON.stringify({to:uids, title:String(title||'WhereApp'), body:String(body||'Новое сообщение'), tag:String(tag||'msg')})
     });
     const txt = await r.text();
     if(!r.ok){ lastPushErr='HTTP '+r.status+': '+txt.slice(0,180); return {error:lastPushErr, status:r.status}; }
@@ -713,10 +713,13 @@ function notifyBar(){
     else if(r==='default') toast('Окно запроса закрылось без ответа. Повторить можно в Настройках.',6000);
   };
 }
-async function notify(title, body){
+async function notify(title, body, tag){
   beep();
   if(!window.Notification || Notification.permission!=='granted') return;
-  const opts={ body:String(body==null?'':body), icon:NOTIF_ICON, badge:NOTIF_ICON, tag:'whereapp' };
+  // Метка обязана быть разной: с одинаковой Android беззвучно подменяет
+  // предыдущее уведомление, и кажется, что новые перестали приходить.
+  const opts={ body:String(body==null?'':body), icon:NOTIF_ICON, badge:NOTIF_ICON,
+               tag:'wa_'+(tag||'msg')+'_'+Date.now(), renotify:true, timestamp:Date.now() };
   try{ if(navigator.vibrate) navigator.vibrate([120,60,120]); }catch(e){}
   try{
     // Android Chrome показывает уведомления только через service worker
@@ -749,7 +752,7 @@ function watchFeed(){
       if(row.kind==='text'){ try{ body=await decText(await chatKey(c),row); }catch(e){ body='Зашифрованное сообщение'; } }
       else body=icons[row.kind]||'Вложение';
       const who=displayName(row.from_uid);
-      notify(c.type==='group'?(c.name||'Группа'):who, (c.type==='group'?who+': ':'')+body);
+      notify(c.type==='group'?(c.name||'Группа'):who, (c.type==='group'?who+': ':'')+body, c.id);
     })
     .subscribe();
 }
@@ -1388,7 +1391,7 @@ async function flushOutbox(){
       saveOutbox();
       if(curChat===c.id) renderMsgs(c.id);
       pushTo(c.members.filter(u=>u!==me.uid), c.type==='group'?(c.name||'Группа'):me.name,
-             (c.type==='group'?me.name+': ':'')+'Новое сообщение');
+             (c.type==='group'?me.name+': ':'')+'Новое сообщение', c.id);
     }catch(e){ break; }   // сеть всё ещё лежит — попробуем позже
   }
   renderChatList();
@@ -1432,7 +1435,7 @@ async function sendMsg(kind, payload, toChat){
   const kinds={text:'Новое сообщение',image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео'};
   pushTo(c.members.filter(u=>u!==me.uid),
          c.type==='group'?(c.name||'Группа'):me.name,
-         (c.type==='group'?me.name+': ':'')+(kinds[kind]||'Новое сообщение'));
+         (c.type==='group'?me.name+': ':'')+(kinds[kind]||'Новое сообщение'), c.id);
 }
 async function sendSystem(text){
   const c=chats.get(curChat); if(!c) return;
@@ -2144,7 +2147,7 @@ async function startCall(video){
   const payload={roomId, chatId:c.id, from:me.uid, fromName:me.name,
     title:c.type==='group'?(c.name||'Группа'):me.name, video, ts:Date.now()};
   for(const u of c.members) if(u!==me.uid) ringUser(u,payload).catch(()=>{});
-  pushTo(c.members.filter(u=>u!==me.uid), me.name, video?'Входящий видеозвонок':'Входящий звонок');
+  pushTo(c.members.filter(u=>u!==me.uid), me.name, video?'Входящий видеозвонок':'Входящий звонок', 'call');
   sendSystem((video?'Видеозвонок':'Звонок')+' начат: '+me.name).catch(()=>{});
 }
 
@@ -2163,7 +2166,7 @@ function ring(on){
 function showIncoming(inv){
   const old=document.querySelector('.incoming'); if(old) old.remove();
   ring(true);
-  if(document.hidden) notify(inv.title||inv.fromName||'Звонок', inv.video?'Входящий видеозвонок':'Входящий звонок');
+  if(document.hidden) notify(inv.title||inv.fromName||'Звонок', inv.video?'Входящий видеозвонок':'Входящий звонок', 'call');
   const w=el('div','incoming'); w.dataset.room=inv.roomId;
   w.innerHTML='<div class="av" style="background:hsl('+hue(inv.from)+' 55% 52%)">'+esc(initials(inv.fromName))+'</div>'
     +'<div style="flex:1"><b>'+esc(inv.title||inv.fromName||'Контакт')+'</b><small>'+(inv.video?'Входящий видеозвонок':'Входящий звонок')+'</small></div>'

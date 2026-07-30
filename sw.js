@@ -1,7 +1,4 @@
-/* WhereApp — service worker.
-   На Android Chrome конструктор new Notification() запрещён,
-   уведомления показывает регистрация service worker.
-   Он же принимает push при закрытом браузере. */
+/* WhereApp — service worker: показ уведомлений и приём push */
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
@@ -17,12 +14,19 @@ self.addEventListener('notificationclick', e => {
 });
 
 self.addEventListener('push', e => {
-  let d = { title: 'WhereApp', body: 'Новое сообщение' };
+  let d = { title: 'WhereApp', body: 'Новое сообщение', tag: '' };
   try { if (e.data) d = Object.assign(d, e.data.json()); } catch (err) {}
+
+  // Уникальная метка обязательна: с одинаковой Android беззвучно подменяет
+  // предыдущее уведомление, и кажется, что новые перестали приходить.
+  const tag = 'wa_' + (d.tag || 'msg') + '_' + Date.now();
+
   e.waitUntil(self.registration.showNotification(String(d.title), {
     body: String(d.body),
     icon: 'icon.png',
     badge: 'icon.png',
-    tag: 'whereapp'
+    tag: tag,
+    renotify: true,
+    timestamp: Date.now()
   }));
 });
