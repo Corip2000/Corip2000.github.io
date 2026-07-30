@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png"><rect width='64' height='64' rx='14' fill='%237C3AED'/><text x='32' y='45' font-size='36' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>W</text></svg>">
+<link rel="apple-touch-icon" href="icon.png">
 <style>
 :root{
   --p:#7C3AED; --p-dark:#5B21B6; --p-deep:#3B0F70; --p-soft:#EDE9FE;
@@ -26,7 +26,8 @@ button{cursor:pointer;border:0;background:none}
 ::-webkit-scrollbar{width:7px;height:7px}
 ::-webkit-scrollbar-thumb{background:#cdc4e4;border-radius:8px}
 
-.gate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;
+.gate{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
   background:radial-gradient(120% 90% at 50% 0%,#7C3AED 0%,#4C1D95 55%,#2A0B57 100%);z-index:50;overflow-y:auto}
 .gate-card{width:100%;max-width:400px;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 24px 60px rgba(20,0,60,.4);margin:auto}
 .logo{font-size:30px;font-weight:800;letter-spacing:-.6px;color:var(--p-dark);margin:0 0 4px}
@@ -45,7 +46,8 @@ button{cursor:pointer;border:0;background:none}
 
 .app{display:flex;height:100%;height:var(--vh,100dvh)}
 .side{width:360px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
-.side-top{background:linear-gradient(135deg,var(--p) 0%,var(--p-dark) 100%);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px}
+.side-top{background:linear-gradient(135deg,var(--p) 0%,var(--p-dark) 100%);color:#fff;
+  padding:calc(14px + env(safe-area-inset-top)) 16px 14px;display:flex;align-items:center;gap:12px}
 .side-top h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.3px;flex:1}
 .icobtn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:inherit;opacity:.92}
 .icobtn:hover{background:rgba(255,255,255,.16)}
@@ -72,7 +74,8 @@ button{cursor:pointer;border:0;background:none}
 
 .main{flex:1;display:flex;flex-direction:column;min-width:0;background-color:#EDE7F8;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'><g fill='none' stroke='%23D9CDF0' stroke-width='1.4' stroke-linecap='round'><path d='M8 14h12M8 20h7'/><path d='M36 38h12M41 44h7'/></g></svg>")}
-.chat-top{background:linear-gradient(135deg,var(--p) 0%,var(--p-dark) 100%);color:#fff;padding:10px 12px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(60,20,120,.18);z-index:2}
+.chat-top{background:linear-gradient(135deg,var(--p) 0%,var(--p-dark) 100%);color:#fff;
+  padding:calc(10px + env(safe-area-inset-top)) 12px 10px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(60,20,120,.18);z-index:2}
 .chat-top .av{width:40px;height:40px;font-size:15px;background:rgba(255,255,255,.25)!important}
 .chat-top .ttl{flex:1;min-width:0}
 .chat-top .ttl b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -140,7 +143,7 @@ button{cursor:pointer;border:0;background:none}
 .quote b{display:block;font-size:12.5px;color:var(--p-dark)}
 .quote span{display:block;font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bub{transition:transform .18s ease}
-.comp{padding:8px 10px;display:flex;align-items:flex-end;gap:8px;background:#F0EBFA;border-top:1px solid var(--line)}
+.comp{padding:8px 10px calc(8px + env(safe-area-inset-bottom));display:flex;align-items:flex-end;gap:8px;background:#F0EBFA;border-top:1px solid var(--line)}
 .comp .box{flex:1;display:flex;align-items:flex-end;background:#fff;border-radius:22px;padding:4px 6px 4px 14px;box-shadow:var(--sh)}
 .comp textarea{flex:1;border:0;outline:none;resize:none;max-height:120px;padding:8px 0;background:none;font-size:15px}
 .circ{width:44px;height:44px;flex:none;border-radius:50%;background:var(--p);color:#fff;display:grid;place-items:center;box-shadow:0 2px 6px rgba(90,30,190,.35)}
@@ -171,9 +174,11 @@ button{cursor:pointer;border:0;background:none}
 .call.min .call-bar{padding:0;gap:8px}
 .call.min .cbtn{width:38px;height:38px}
 .call.min .cbtn#cMic,.call.min .cbtn#cCam,.call.min #cMin{display:none}
-#cMin{position:absolute;top:14px;left:14px;width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.15);
-  color:#fff;display:grid;place-items:center;z-index:3}
-.call-head{padding:18px;text-align:center}
+#cMin{position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;width:46px;height:46px;
+  border-radius:50%;background:rgba(255,255,255,.18);color:#fff;display:grid;place-items:center;z-index:10}
+#cMin:active{background:rgba(255,255,255,.34)}
+.call.min #cMin{display:none}
+.call-head{padding:calc(18px + env(safe-area-inset-top)) 18px 18px;text-align:center}
 .call-head b{font-size:21px;display:block}
 .call-head span{opacity:.7;font-size:13.5px}
 .grid{flex:1;display:flex;flex-wrap:wrap;gap:8px;padding:8px;align-content:center;justify-content:center;overflow:hidden}
@@ -182,7 +187,7 @@ button{cursor:pointer;border:0;background:none}
 .tile.novideo video{display:none}
 .tile .nm{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.5);padding:3px 9px;border-radius:8px;font-size:12.5px;z-index:2}
 .tile .bigav{width:88px;height:88px;border-radius:50%;display:grid;place-items:center;font-size:30px;font-weight:700;background:var(--p)}
-.call-bar{padding:20px;display:flex;gap:16px;justify-content:center;align-items:center}
+.call-bar{padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;gap:16px;justify-content:center;align-items:center}
 .cbtn{width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:grid;place-items:center}
 .cbtn.off{background:#fff;color:#2A0B57}
 .cbtn.end{background:var(--bad)}
@@ -235,6 +240,11 @@ body.mini #app{padding-top:46px}
       <label class="field">
         <b>Ваше имя</b>
         <input class="inp" id="nameInput" maxlength="28" placeholder="Например, Кирилл" autocomplete="off">
+      </label>
+      <label class="field">
+        <b>Код приглашения</b>
+        <input class="inp" id="inviteInput" placeholder="Выдаётся владельцем" autocomplete="off"
+               autocapitalize="off" autocorrect="off" spellcheck="false">
       </label>
       <p class="note" style="margin:-6px 0 14px">Это имя увидят другие пользователи. Его можно поменять позже в настройках.</p>
       <button class="btn" id="startBtn">Войти в WhereApp</button>
@@ -366,6 +376,7 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 const SUPA_URL = 'https://zvdwimgmbxhvvdnmjuag.supabase.co';
 const SUPA_KEY = 'sb_publishable_0FbeQ-Y9mtRqlKHmKRXrHw_RjI-EHa1';
 
+const INVITE_CODE = 'WhatsApp777300>WhereApp$';   // без него регистрация не проходит
 const MAX_FILE   = 20 * 1024 * 1024;    // 20 МБ на файл
 const IMG_TARGET = 1.5 * 1024 * 1024;   // цель сжатия фото
 const LIMIT_MSG  = 'Извините, но сайт имеет бесплатную базу данных, сожмите файл (лимит 20 МБ). Зато звонить можно!!';
@@ -543,6 +554,11 @@ const scrollBottom = ()=>{
 $('#startBtn').onclick = async ()=>{
   const name=$('#nameInput').value.trim();
   if(name.length<2) return toast('Введите имя — минимум 2 символа.');
+  const inv=$('#inviteInput').value.trim();
+  if(inv!==INVITE_CODE){
+    $('#inviteInput').focus();
+    return toast('Неверный код приглашения. Попросите его у владельца мессенджера.',5000);
+  }
   const btn=$('#startBtn'); btn.disabled=true; btn.textContent='Создаём профиль…';
   try{
     let code=S.get('wa_code');
@@ -1570,7 +1586,8 @@ let photoState=null;
 async function prepPhotos(files){
   const out=[];
   for(const f of files){
-    if(!/^image\//.test(f.type||'')) continue;
+    const looksImage = /^image\//.test(f.type||'') || /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(f.name||'');
+    if(!looksImage) continue;
     try{
       const r=await compress(f);
       if(r.bytes.length>MAX_FILE){ toast('Одно фото слишком большое, пропустил.',3000); continue; }
@@ -1790,6 +1807,8 @@ $('#btnChatInfo').onclick=async()=>{
       +'<div style="height:8px"></div><button class="btn danger" id="blkC">'+(isBlocked(other)?'Разблокировать':'Заблокировать')+'</button>'
       +'<p class="note">Общий ключ вычисляется из ваших ключевых пар и никуда не передаётся. Сервер хранит только шифротекст.</p>');
     paintAv(m.querySelector('#pv'), c.members.find(u=>u!==me.uid), initials(p.name));
+    if(p.avatar){ m.querySelector('#pv').style.cursor='zoom-in';
+      m.querySelector('#pv').onclick=()=>lightbox(p.avatar, (p.name||'avatar')+'.jpg'); }
     m.querySelector('#cpc').onclick=()=>copy(p.code||'');
     m.querySelector('#saveNick').onclick=()=>{
       setLocalName(other, m.querySelector('#nick').value.trim());
@@ -1947,9 +1966,8 @@ $('#btnSettings').onclick=()=>{
     +'<div style="height:8px"></div><button class="btn ghost" id="notifBtn">Включить уведомления</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="diagBtn">Проверить уведомления</button>'
     +'<pre id="diagOut" class="hidden" style="white-space:pre-wrap;font-size:11.5px;background:#F6F3FC;border-radius:10px;padding:12px;margin-top:10px;line-height:1.6"></pre>'
-    +'<div style="height:8px"></div><button class="btn ghost" id="pushTest">Проверить доставку при закрытом сайте</button>'
     +'<div id="pushOut" class="note" style="margin-top:6px"></div>'
-    +'<div style="height:6px"></div><button class="btn ghost" id="swReset" style="font-size:13.5px;padding:10px">Перезапустить фоновый модуль</button>'
+
     +'<div style="height:8px"></div><button class="btn ghost" id="howTo">Как получать сообщения всегда</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="blkList">Заблокированные ('+blocked.length+')</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="expK">Ключ для входа на другом устройстве</button>'
@@ -1965,6 +1983,10 @@ $('#btnSettings').onclick=()=>{
     close(); renderChatList(); toast('Имя обновлено — его увидят все контакты.');
   };
   paintAv(m.querySelector('#avBox'), me.uid, initials(me.name));
+  m.querySelector('#avBox').onclick=()=>{
+    const url=(profiles.get(me.uid)||{}).avatar;
+    if(url) lightbox(url,'avatar.jpg'); else m.querySelector('#avPick').click();
+  };
   const nb=m.querySelector('#notifBtn');
   const refreshNb=()=>{
     if(NATIVE){
@@ -2034,7 +2056,9 @@ $('#btnSettings').onclick=()=>{
 
     out.textContent=L.join('\n');
   };
-  m.querySelector('#pushTest').onclick=async()=>{
+  const _noop={onclick:null,style:{},disabled:false,textContent:''};
+  const q=(s)=>m.querySelector(s)||_noop;
+  q('#pushTest').onclick=async()=>{
     const out=m.querySelector('#pushOut');
     const b=m.querySelector('#pushTest'); b.disabled=true; b.textContent='Проверяем…';
     out.textContent='';
@@ -2089,7 +2113,7 @@ $('#btnSettings').onclick=()=>{
       }
     }catch(e){}
   })();
-  m.querySelector('#swReset').onclick=async()=>{
+  q('#swReset').onclick=async()=>{
     const b=m.querySelector('#swReset'); b.disabled=true; b.textContent='Обновляем…';
     try{
       const regs=await navigator.serviceWorker.getRegistrations();
@@ -2104,7 +2128,7 @@ $('#btnSettings').onclick=()=>{
     }catch(e){ toast('Ошибка: '+(e.message||e),5000); }
     b.disabled=false; b.textContent='Перезапустить фоновый модуль';
   };
-  m.querySelector('#howTo').onclick=()=>{
+  q('#howTo').onclick=()=>{
     modal('<h3>Чтобы сообщения приходили всегда</h3>'
       +'<p class="sub">Вкладку браузера Android замораживает через несколько секунд — это не отключается. Работают только уведомления, и вот как настроить их правильно.</p>'
       +'<b style="font-size:12px;color:var(--mut)">1. ВСПЛЫВАЮЩИЕ СВЕРХУ, А НЕ ТОЛЬКО В ШТОРКЕ</b>'
@@ -2157,7 +2181,6 @@ $('#btnSettings').onclick=()=>{
     };
     inp.click();
   };
-  m.querySelector('#avBox').onclick=()=>m.querySelector('#avPick').click();
   m.querySelector('#copyC').onclick=()=>copy(me.code);
   m.querySelector('#expK').onclick=()=>{
     m.querySelector('#keyOut').classList.remove('hidden');
