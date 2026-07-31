@@ -85,7 +85,13 @@ button{cursor:pointer;border:0;background:none}
   background:var(--p-dark);color:#fff;z-index:3}
 .selbar button{color:#fff;font-size:19px;padding:4px 6px}
 .selbar b{font-size:17px;font-weight:600}
-.bub.sel{outline:3px solid var(--p);outline-offset:1px}
+.bub.sel{outline:2.5px solid var(--p);outline-offset:1px}
+.bub{position:relative}
+.seldot{position:absolute;top:50%;left:-30px;transform:translateY(-50%);width:23px;height:23px;border-radius:50%;
+  border:2px solid #b9addb;background:#fff;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff}
+.seldot.on{background:var(--p);border-color:var(--p)}
+.bub.me .seldot{left:auto;right:-30px}
+.selmode .msgs{padding-left:42px;padding-right:42px}
 .selmode .bub{cursor:pointer}
 .pinbar{display:flex;align-items:center;gap:9px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);
   color:var(--p-dark);font-size:13.5px;cursor:pointer;z-index:2}
@@ -1176,7 +1182,13 @@ function renderMsgs(id){
     let holdT=null, sx=0, sy=0, drag=false, pid=null;
     b.style.touchAction='pan-y';          // горизонталь остаётся нам, вертикаль — прокрутке
     b.addEventListener('contextmenu',ev=>{ ev.preventDefault(); msgMenu(m,b); });
-    if(selMode && selected.has(m.id)) b.classList.add('sel');
+    if(selMode && m.kind!=='sys'){
+      const dot=el('div','selдot');
+      dot.className='seldot'+(selected.has(m.id)?' on':'');
+      dot.textContent=selected.has(m.id)?'✓':'';
+      b.appendChild(dot);
+      if(selected.has(m.id)) b.classList.add('sel');
+    }
     b.addEventListener('click',ev=>{
       if(!selMode) return;
       ev.preventDefault(); ev.stopPropagation();
@@ -1722,7 +1734,7 @@ $('#btnAttach').onclick=e=>{
 };
 $('#imgPick').onchange=async e=>{
   const files=[...e.target.files]; e.target.value=''; if(!files.length) return;
-  await openPhotoPicker(files);
+  if(photoState) await addPhotos(files); else await openPhotoPicker(files);
 };
 $('#camPick').onchange=async e=>{
   const files=[...e.target.files]; e.target.value=''; if(!files.length) return;
@@ -1731,16 +1743,28 @@ $('#camPick').onchange=async e=>{
 
 let photoState=null;
 async function prepPhotos(files){
-  const out=[];
+  const out=[]; let failed=0;
   for(const f of files){
-    const looksImage = /^image\//.test(f.type||'') || /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(f.name||'');
-    if(!looksImage) continue;
+    // Ничего не отсеиваем заранее: из системного выбора Android файлы
+    // часто приходят без имени и без типа, и проверка убивала их все
     try{
       const r=await compress(f);
       if(r.bytes.length>MAX_FILE){ toast('Одно фото слишком большое, пропустил.',3000); continue; }
-      out.push({...r, name:f.name||'photo.jpg', url:URL.createObjectURL(new Blob([r.bytes],{type:r.mime})), on:true});
-    }catch(e){}
+      out.push({bytes:r.bytes, mime:r.mime, w:r.w, h:r.h,
+                name:f.name||('photo_'+rid(5)+'.jpg'),
+                url:URL.createObjectURL(new Blob([r.bytes],{type:r.mime})), on:true});
+    }catch(e){
+      // не картинка или не читается — отправим как файл
+      try{
+        const bytes=new Uint8Array(await f.arrayBuffer());
+        if(bytes.length<=MAX_FILE){
+          await sendMsg('file',{bytes,meta:{name:f.name||'file',size:bytes.length,
+            mime:f.type||'application/octet-stream'}});
+        } else failed++;
+      }catch(e2){ failed++; }
+    }
   }
+  if(failed) toast('Не удалось прочитать '+failed+' файл(ов).',3500);
   return out;
 }
 async function openPhotoPicker(files){
@@ -1795,6 +1819,11 @@ function drawPhotoGrid(){
   cam.innerHTML='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.4"/></svg><span>Камера</span>';
   cam.onclick=()=>$('#camPick').click();
   g.appendChild(cam);
+
+  const more=el('div','phcam');
+  more.innerHTML='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>Ещё фото</span>';
+  more.onclick=()=>$('#imgPick').click();
+  g.appendChild(more);
   items.forEach((it,idx)=>{
     const cell=el('div','phcell'+(it.on?' on':''));
     const img=document.createElement('img'); img.src=it.url; cell.appendChild(img);
