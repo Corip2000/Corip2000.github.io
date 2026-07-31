@@ -87,11 +87,11 @@ button{cursor:pointer;border:0;background:none}
 .selbar b{font-size:17px;font-weight:600}
 .bub.sel{outline:2.5px solid var(--p);outline-offset:1px}
 .bub{position:relative}
-.seldot{position:absolute;top:9px;left:8px;width:22px;height:22px;border-radius:50%;
-  border:2px solid #b9addb;background:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff}
+.seldot{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;
+  border:2px solid rgba(120,90,180,.45);background:rgba(255,255,255,.9);display:grid;place-items:center;
+  font-size:12px;font-weight:800;color:#fff;z-index:2}
 .seldot.on{background:var(--p);border-color:var(--p)}
-.selmode .bub{padding-left:38px}
-.selmode .bub .quote,.selmode .bub .poll{margin-left:0}
+.bub.me .seldot{right:auto;left:6px}
 .selmode .bub{cursor:pointer}
 .pinbar{display:flex;align-items:center;gap:9px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);
   color:var(--p-dark);font-size:13.5px;cursor:pointer;z-index:2}
@@ -1323,7 +1323,7 @@ function msgMenu(m, node){
   left = Math.max(pad, Math.min(left, innerWidth - w - pad));
   bar.style.top=top+'px'; bar.style.left=left+'px';
 
-  setTimeout(()=>document.addEventListener('pointerdown',onAway,true),0);
+  setTimeout(()=>document.addEventListener('pointerdown',onAway,true),320);
 }
 function onAway(e){
   if(toolsEl && toolsEl.contains(e.target)) return;
@@ -1653,12 +1653,18 @@ let drafts = JSON.parse(S.get('wa_drafts')||'{}');
 let selMode=false;
 const selected=new Set();
 function selUpdate(rerender){
+  const box=$('#msgs');
+  const prevTop=box?box.scrollTop:0, prevH=box?box.scrollHeight:0;
   $('#selCount').textContent=selected.size;
   $('#selBar').classList.toggle('hidden',!selMode);
   $('#chatTop').style.display = selMode ? 'none' : 'flex';
   $('#selOne').style.display = selected.size===1 ? 'block' : 'none';
   document.body.classList.toggle('selmode',selMode);
-  if(rerender && curChat) renderMsgs(curChat);
+  if(rerender && curChat){
+    renderMsgs(curChat);
+    // высота сообщений меняется — держим ленту на том же месте
+    if(box) box.scrollTop = prevTop + (box.scrollHeight - prevH);
+  }
 }
 function selPaint(m){
   const b=document.getElementById('m_'+m.id); if(!b) return;
@@ -2501,11 +2507,16 @@ function fallbackCopy(t){
   i.remove();
 }
 $('#selCancel').onclick=selEnd;
-$('#selOne').onclick=()=>{
+$('#selOne').onclick=(ev)=>{
+  ev.stopPropagation();
   const items=selItems(); if(items.length!==1) return;
   const m=items[0];
-  selEnd();
-  setTimeout(()=>msgMenu(m, document.getElementById('m_'+m.id)), 60);
+  const node=document.getElementById('m_'+m.id);
+  selMode=false; selected.clear();
+  $('#selBar').classList.add('hidden');
+  $('#chatTop').style.display='flex';
+  document.body.classList.remove('selmode');
+  msgMenu(m, node);
 };
 $('#selCopy').onclick=()=>{
   const items=selItems().filter(m=>m.text && m.kind!=='sys');
