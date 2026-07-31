@@ -87,11 +87,11 @@ button{cursor:pointer;border:0;background:none}
 .selbar b{font-size:17px;font-weight:600}
 .bub.sel{outline:2.5px solid var(--p);outline-offset:1px}
 .bub{position:relative}
-.seldot{position:absolute;top:50%;left:-30px;transform:translateY(-50%);width:23px;height:23px;border-radius:50%;
-  border:2px solid #b9addb;background:#fff;display:grid;place-items:center;font-size:13px;font-weight:800;color:#fff}
+.seldot{position:absolute;top:9px;left:8px;width:22px;height:22px;border-radius:50%;
+  border:2px solid #b9addb;background:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff}
 .seldot.on{background:var(--p);border-color:var(--p)}
-.bub.me .seldot{left:auto;right:-30px}
-.selmode .msgs{padding-left:42px;padding-right:42px}
+.selmode .bub{padding-left:38px}
+.selmode .bub .quote,.selmode .bub .poll{margin-left:0}
 .selmode .bub{cursor:pointer}
 .pinbar{display:flex;align-items:center;gap:9px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);
   color:var(--p-dark);font-size:13.5px;cursor:pointer;z-index:2}
@@ -1205,6 +1205,7 @@ function renderMsgs(id){
       },420);
     });
     b.addEventListener('pointermove',ev=>{
+      if(selMode) return;
       const dx=ev.clientX-sx, dy=ev.clientY-sy;
       if(!drag && Math.abs(dx)>8 && Math.abs(dx)>Math.abs(dy)){
         drag=true; clearTimeout(holdT);
@@ -1214,6 +1215,7 @@ function renderMsgs(id){
     });
     const endDrag=ev=>{
       clearTimeout(holdT);
+      if(selMode){ drag=false; b.style.transition=''; b.style.transform=''; return; }
       if(!drag) return;
       const dx=(ev.clientX||sx)-sx;
       b.style.transition=''; b.style.transform='';
@@ -1739,7 +1741,9 @@ $('#btnAttach').onclick=e=>{
   const old=document.querySelector('.attach-menu'); if(old) old.remove();
   const m=el('div','attach-menu');
   const mk=(t,fn)=>{const b=el('button',null,t); b.onclick=()=>{m.remove();fn();}; return b;};
-  m.append(mk('🖼  Фото (сожмётся автоматически)',()=>$('#imgPick').click()),
+  m.append(mk('🖼  Фото (сожмётся автоматически)',()=>{
+             if(NATIVE && NATIVE.pickPhotos) nativeCall('pickPhotos'); else $('#imgPick').click();
+           }),
            mk('📎  Файл (до 20 МБ)',()=>$('#filePick').click()),
            mk('📊  Опрос',()=>pollCreate()));
   $('#composer').appendChild(m);
@@ -1780,6 +1784,21 @@ async function prepPhotos(files){
   if(failed) toast('Не удалось прочитать '+failed+' файл(ов).',3500);
   return out;
 }
+// Приложение передаёт сюда уже уменьшенные снимки
+window.__nativePhotos = async function(list, captionText){
+  try{
+    if(!list || !list.length) return;
+    const rep=replyTo; clearReply(); stickBottom=true;
+    toast('Отправляем '+list.length+' фото…',2000);
+    for(let i=0;i<list.length;i++){
+      const bytes=unb64(list[i].b64);
+      await sendMsg('image',{bytes, text:i===0?(captionText||''):'', reply:i===0?rep:null,
+        meta:{name:list[i].name||'photo.jpg', size:bytes.length, mime:'image/jpeg'}});
+    }
+    stickBottom=true; scrollBottom();
+  }catch(e){ toast('ОШИБКА ОТПРАВКИ: '+(e.message||e),9000); }
+};
+
 async function openPhotoPicker(files){
   toast('Готовим фото…',1200);
   const items=await prepPhotos(files);
@@ -2484,8 +2503,9 @@ function fallbackCopy(t){
 $('#selCancel').onclick=selEnd;
 $('#selOne').onclick=()=>{
   const items=selItems(); if(items.length!==1) return;
-  const m=items[0]; selEnd();
-  msgMenu(m, document.getElementById('m_'+m.id));
+  const m=items[0];
+  selEnd();
+  setTimeout(()=>msgMenu(m, document.getElementById('m_'+m.id)), 60);
 };
 $('#selCopy').onclick=()=>{
   const items=selItems().filter(m=>m.text && m.kind!=='sys');
