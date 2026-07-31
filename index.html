@@ -81,17 +81,17 @@ button{cursor:pointer;border:0;background:none}
 .chat-top .ttl b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-top .ttl span{font-size:12px;opacity:.8}
 .msgs{flex:1;overflow-y:auto;padding:16px 8% 10px;display:flex;flex-direction:column;gap:4px;overscroll-behavior:contain}
-.selbar{display:flex;align-items:center;gap:14px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;
-  background:var(--p-dark);color:#fff;z-index:3}
+.selbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;
+  padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:var(--p-dark);color:#fff;z-index:6}
 .selbar button{color:#fff;font-size:19px;padding:4px 6px}
 .selbar b{font-size:17px;font-weight:600}
 .bub.sel{outline:2.5px solid var(--p);outline-offset:1px}
 .bub{position:relative}
-.seldot{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;
-  border:2px solid rgba(120,90,180,.45);background:rgba(255,255,255,.9);display:grid;place-items:center;
+.seldot{position:absolute;top:50%;right:-29px;transform:translateY(-50%);width:22px;height:22px;
+  border-radius:50%;border:2px solid #b9addb;background:#fff;display:grid;place-items:center;
   font-size:12px;font-weight:800;color:#fff;z-index:2}
 .seldot.on{background:var(--p);border-color:var(--p)}
-.bub.me .seldot{right:auto;left:6px}
+.bub.me .seldot{right:auto;left:-29px}
 .selmode .bub{cursor:pointer}
 .pinbar{display:flex;align-items:center;gap:9px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);
   color:var(--p-dark);font-size:13.5px;cursor:pointer;z-index:2}
@@ -161,6 +161,10 @@ button{cursor:pointer;border:0;background:none}
 .rb-body b{display:block;font-size:12.5px;color:var(--p-dark)}
 .rb-body span{display:block;font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .replybar button{color:var(--mut);font-size:17px;padding:0 6px;flex:none}
+.album{display:grid;grid-template-columns:1fr 1fr;gap:3px;border-radius:8px;overflow:hidden;margin-bottom:3px}
+.album.one{grid-template-columns:1fr}
+.album-i{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#ddd6ee;cursor:zoom-in}
+.album.one .album-i{aspect-ratio:auto;max-height:340px;object-fit:contain;background:#0002}
 .poll{min-width:240px;max-width:340px}
 .poll-q{font-weight:700;font-size:14.8px;margin:2px 0 8px}
 .poll-opt{position:relative;border:1.5px solid var(--line);border-radius:9px;margin-bottom:6px;
@@ -257,7 +261,7 @@ body.mini #app{padding-top:46px}
   .side{width:100%}
   .main{position:fixed;inset:0;z-index:10;transform:translateX(100%);transition:transform .22s ease}
   .main.open{transform:none}
-  .msgs{padding:12px 10px 8px}
+  .msgs{padding:12px 34px 8px}
   .bub{max-width:86%}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -326,7 +330,8 @@ body.mini #app{padding-top:46px}
       <button id="selCancel">✕</button>
       <b id="selCount">0</b>
       <span style="flex:1"></span>
-      <button id="selOne" title="Ещё">⋯</button>
+      <button id="selCut" title="Вырезать часть">✂️</button>
+      <button id="selEdit" title="Изменить">✏️</button>
       <button id="selCopy" title="Копировать">📋</button>
       <button id="selShare" title="Переслать">↗</button>
       <button id="selDel" title="Удалить">🗑</button>
@@ -1017,7 +1022,7 @@ function renderChatList(){
 async function previewText(c){
   if(!c.last) return 'Чат создан';
   const who = c.last.from===me.uid?'Вы: ' : (c.type==='group'? displayName(c.last.from)+': ' : '');
-  const icons={image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео',poll:'📊 Опрос'};
+  const icons={image:'📷 Фото',album:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео',poll:'📊 Опрос'};
   if(c.last.kind!=='text') return who+(icons[c.last.kind]||'Сообщение');
   try{ return who+await decText(await chatKey(c), c.last); }catch(e){ return who+'🔒 зашифровано'; }
 }
@@ -1237,7 +1242,24 @@ function renderMsgs(id){
       b.appendChild(q);
     }
 
-    if(m.kind==='poll') renderPoll(b,m);
+    if(m.kind==='album'){
+      const n=(m.blob&&m.blob.list)?m.blob.list.length:0;
+      const g=el('div','album'+(n===1?' one':''));
+      for(let i=0;i<n;i++){
+        const cellImg=document.createElement('img');
+        cellImg.className='album-i'; cellImg.alt='фото';
+        g.appendChild(cellImg);
+        (idx=>{
+          loadAlbumItem(id,m,idx).then(u=>{
+            cellImg.src=u;
+            cellImg.onclick=ev=>{ ev.stopPropagation(); if(!selMode) lightbox(u,'photo.jpg'); };
+          }).catch(()=>{ cellImg.alt='не загрузилось'; });
+        })(i);
+      }
+      b.appendChild(g);
+      if(m.text) b.appendChild(el('div','txt',m.text));
+    }
+    else if(m.kind==='poll') renderPoll(b,m);
     else if(m.kind==='text') b.appendChild(el('div','txt',m.text));
     else if(m.kind==='image'){
       const img=el('img','ph'); img.alt='фото'; b.appendChild(img);
@@ -1553,6 +1575,18 @@ async function blobBytes(chatId,m){
   if(error) throw error;
   return new Uint8Array(await decRaw(key, await data.arrayBuffer(), m.blob.iv));
 }
+async function loadAlbumItem(chatId,m,idx){
+  const ck=chatId+'/'+m.id+'#'+idx;
+  if(blobUrls.has(ck)) return blobUrls.get(ck);
+  const key=await chatKey(chats.get(chatId));
+  const part=m.blob.list[idx];
+  const {data,error}=await sb.storage.from('media').download(part.path);
+  if(error) throw error;
+  const plain=await decRaw(key, await data.arrayBuffer(), part.iv);
+  const meta=(m.meta&&m.meta.items&&m.meta.items[idx])||{};
+  const url=URL.createObjectURL(new Blob([plain],{type:meta.mime||'image/jpeg'}));
+  blobUrls.set(ck,url); return url;
+}
 async function loadBlob(chatId,m){
   const ck=chatId+'/'+m.id;
   if(blobUrls.has(ck)) return blobUrls.get(ck);
@@ -1604,6 +1638,40 @@ function bumpChat(chatId, ts, last){
 }
 
 /* ---------- отправка ---------- */
+async function sendAlbum(list, captionText, rep, toChat){
+  const c=chats.get(toChat||curChat); if(!c) return;
+  const key=await chatKey(c);
+  const ts=Date.now();
+  const enc=await encText(key, captionText||'');
+  const blobs=[], metas=[];
+  for(let i=0;i<list.length;i++){
+    setProg((i+1)/(list.length+1));
+    const b=await putBlob(c.id,key,list[i].bytes,list[i].mime);
+    blobs.push(b);
+    metas.push({name:list[i].name||'photo.jpg', size:list[i].bytes.length,
+                mime:list[i].mime||'image/jpeg', w:list[i].w, h:list[i].h});
+  }
+  const row={id:rid(22), chat_id:c.id, from_uid:me.uid, ts, kind:'album',
+             ct:enc.ct, iv:enc.iv, blob:{list:blobs}, meta:{items:metas}};
+  if(rep) row.reply={id:rep.id, from:rep.from, kind:rep.kind, ct:rep.ct, iv:rep.iv};
+  const {error}=await sb.from('messages').insert(row);
+  if(error) throw error;
+  try{
+    if(!msgCache.has(c.id)) msgCache.set(c.id,new Map());
+    await absorb(c.id,[Object.assign({},row,{delivered_to:[],read_by:[]})]);
+    if(curChat===c.id){ renderMsgs(c.id); scrollBottom(); }
+  }catch(e){}
+  await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind:'album',ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
+  seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
+  bumpChat(c.id, ts, {from:me.uid,kind:'album',ts,ct:enc.ct,iv:enc.iv});
+  setProg(0);
+  const myAv=(profiles.get(me.uid)||{}).avatar||null;
+  pushTo(c.members.filter(u=>u!==me.uid), c.type==='group'?(c.name||'Группа'):me.name,
+         (c.type==='group'?me.name+': ':'')+'📷 Фото', row.id,
+         { chatId:c.id, kind:'album', icon:myAv, sender:me.name,
+           group:(c.type==='group'?(c.name||'Группа'):null) });
+}
+
 async function sendMsg(kind, payload, toChat){
   const c=chats.get(toChat||curChat); if(!c) return;
   const key=await chatKey(c);
@@ -1652,33 +1720,34 @@ async function sendSystem(text){
 let drafts = JSON.parse(S.get('wa_drafts')||'{}');
 let selMode=false;
 const selected=new Set();
-function selUpdate(rerender){
-  const box=$('#msgs');
-  const prevTop=box?box.scrollTop:0, prevH=box?box.scrollHeight:0;
+function selUpdate(){
   $('#selCount').textContent=selected.size;
   $('#selBar').classList.toggle('hidden',!selMode);
-  $('#chatTop').style.display = selMode ? 'none' : 'flex';
-  $('#selOne').style.display = selected.size===1 ? 'block' : 'none';
+  const one = selected.size===1;
+  $('#selEdit').style.display = one ? 'block' : 'none';
+  $('#selCut').style.display = one ? 'block' : 'none';
   document.body.classList.toggle('selmode',selMode);
-  if(rerender && curChat){
-    renderMsgs(curChat);
-    // высота сообщений меняется — держим ленту на том же месте
-    if(box) box.scrollTop = prevTop + (box.scrollHeight - prevH);
-  }
+  // Метки добавляем прямо в готовые пузыри: перерисовка ленты сбивала прокрутку
+  document.querySelectorAll('#msgs .bub').forEach(b=>{
+    const old=b.querySelector('.seldot');
+    if(!selMode){ if(old) old.remove(); b.classList.remove('sel'); return; }
+    const id=b.id.slice(2);
+    const on=selected.has(id);
+    let dot=old;
+    if(!dot){ dot=el('div','seldot'); b.appendChild(dot); }
+    dot.className='seldot'+(on?' on':'');
+    dot.textContent=on?'✓':'';
+    b.classList.toggle('sel',on);
+  });
 }
-function selPaint(m){
-  const b=document.getElementById('m_'+m.id); if(!b) return;
-  const on=selected.has(m.id);
-  b.classList.toggle('sel',on);
-  const dot=b.querySelector('.seldot');
-  if(dot){ dot.classList.toggle('on',on); dot.textContent=on?'✓':''; }
-}
-function selStart(m){ selMode=true; selected.clear(); selected.add(m.id); selUpdate(true); }
-function selEnd(){ selMode=false; selected.clear(); selUpdate(true); }
+function selPaint(){ selUpdate(); }
+
+function selStart(m){ selMode=true; selected.clear(); selected.add(m.id); selUpdate(); }
+function selEnd(){ selMode=false; selected.clear(); selUpdate(); }
 function selToggle(m){
   if(selected.has(m.id)) selected.delete(m.id); else selected.add(m.id);
   if(!selected.size) return selEnd();
-  selPaint(m); selUpdate(false);
+  selUpdate();
 }
 function selItems(){
   const cache=msgCache.get(curChat); if(!cache) return [];
@@ -1796,10 +1865,12 @@ window.__nativePhotos = async function(list, captionText){
     if(!list || !list.length) return;
     const rep=replyTo; clearReply(); stickBottom=true;
     toast('Отправляем '+list.length+' фото…',2000);
-    for(let i=0;i<list.length;i++){
-      const bytes=unb64(list[i].b64);
-      await sendMsg('image',{bytes, text:i===0?(captionText||''):'', reply:i===0?rep:null,
-        meta:{name:list[i].name||'photo.jpg', size:bytes.length, mime:'image/jpeg'}});
+    const items=list.map(x=>({bytes:unb64(x.b64), mime:'image/jpeg', name:x.name||'photo.jpg'}));
+    if(items.length===1){
+      await sendMsg('image',{bytes:items[0].bytes, text:captionText||'', reply:rep,
+        meta:{name:items[0].name, size:items[0].bytes.length, mime:'image/jpeg'}});
+    }else{
+      await sendAlbum(items, captionText||'', rep);
     }
     stickBottom=true; scrollBottom();
   }catch(e){ toast('ОШИБКА ОТПРАВКИ: '+(e.message||e),9000); }
@@ -1833,13 +1904,15 @@ async function openPhotoPicker(files){
     if(!chosen.length) return toast('Отметьте хотя бы одно фото.',2500);
     const cap=box.querySelector('#cap').value.trim();
     done(); clearReply(); stickBottom=true;
-    for(let i=0;i<chosen.length;i++){
-      const it=chosen[i];
-      try{
-        await sendMsg('image',{bytes:it.bytes, text:i===0?cap:'', reply:i===0?rep:null,
+    try{
+      if(chosen.length===1){
+        const it=chosen[0];
+        await sendMsg('image',{bytes:it.bytes, text:cap, reply:rep,
           meta:{name:it.name, size:it.bytes.length, mime:it.mime, w:it.w, h:it.h}});
-      }catch(err){ toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),9000); break; }
-    }
+      }else{
+        await sendAlbum(chosen, cap, rep);
+      }
+    }catch(err){ setProg(0); toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),9000); }
     stickBottom=true; scrollBottom();
   };
 }
@@ -2507,16 +2580,19 @@ function fallbackCopy(t){
   i.remove();
 }
 $('#selCancel').onclick=selEnd;
-$('#selOne').onclick=(ev)=>{
+$('#selCut').onclick=(ev)=>{
   ev.stopPropagation();
   const items=selItems(); if(items.length!==1) return;
   const m=items[0];
-  const node=document.getElementById('m_'+m.id);
-  selMode=false; selected.clear();
-  $('#selBar').classList.add('hidden');
-  $('#chatTop').style.display='flex';
-  document.body.classList.remove('selmode');
-  msgMenu(m, node);
+  if(!m.text) return toast('В этом сообщении нет текста.',2500);
+  selEnd(); selectPart(m.text);
+};
+$('#selEdit').onclick=(ev)=>{
+  ev.stopPropagation();
+  const items=selItems(); if(items.length!==1) return;
+  const m=items[0];
+  if(m.from!==me.uid || m.kind!=='text') return toast('Изменить можно только своё текстовое сообщение.',3500);
+  selEnd(); editMsg(m);
 };
 $('#selCopy').onclick=()=>{
   const items=selItems().filter(m=>m.text && m.kind!=='sys');
