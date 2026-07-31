@@ -87,11 +87,11 @@ button{cursor:pointer;border:0;background:none}
 .selbar b{font-size:17px;font-weight:600}
 .bub.sel{outline:2.5px solid var(--p);outline-offset:1px}
 .bub{position:relative}
-.seldot{position:absolute;top:50%;right:-13px;transform:translateY(-50%);width:21px;height:21px;
+.seldot{position:absolute;top:50%;right:-8px;transform:translateY(-50%);width:21px;height:21px;
   border-radius:50%;border:2px solid #b9addb;background:#fff;display:grid;place-items:center;
   font-size:12px;font-weight:800;color:#fff;z-index:3;box-shadow:0 1px 4px rgba(60,20,120,.25)}
 .seldot.on{background:var(--p);border-color:var(--p)}
-.bub.me .seldot{right:auto;left:-13px}
+.bub.me .seldot{right:auto;left:-8px}
 .selmode .bub{cursor:pointer}
 .pinbar{display:flex;align-items:center;gap:9px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);
   color:var(--p-dark);font-size:13.5px;cursor:pointer;z-index:2}
@@ -263,7 +263,7 @@ body.mini #app{padding-top:46px}
   .side{width:100%}
   .main{position:fixed;inset:0;z-index:10;transform:translateX(100%);transition:transform .22s ease}
   .main.open{transform:none}
-  .msgs{padding:12px 18px 8px}
+  .msgs{padding:12px 12px 8px}
   .bub{max-width:86%}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
