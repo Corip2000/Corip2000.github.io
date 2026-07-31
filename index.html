@@ -44,7 +44,7 @@ button{cursor:pointer;border:0;background:none}
 .btn.danger{background:#FDECEC;color:var(--bad)}
 .note{font-size:12.5px;color:var(--mut);margin-top:14px;line-height:1.5}
 
-.app{display:flex;height:100%;height:var(--vh,100dvh)}
+.app{display:flex;height:100%;height:var(--vh,100dvh);transition:height .18s cubic-bezier(.4,0,.2,1)}
 .side{width:360px;flex:none;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column}
 .side-top{background:linear-gradient(135deg,var(--p) 0%,var(--p-dark) 100%);color:#fff;
   padding:calc(14px + env(safe-area-inset-top)) 16px 14px;display:flex;align-items:center;gap:12px}
@@ -100,6 +100,16 @@ button{cursor:pointer;border:0;background:none}
 .tools button:active,.tools button:hover{background:var(--p-soft)}
 .tools button.del{color:var(--bad)}
 .bub.sel{box-shadow:0 0 0 2px var(--p)}
+.phsheet{position:fixed;inset:0;z-index:55;background:#fff;display:flex;flex-direction:column}
+.phsheet .ph-top{display:flex;align-items:center;gap:14px;padding:calc(12px + env(safe-area-inset-top)) 14px 12px;
+  background:var(--p-dark);color:#fff}
+.phsheet .ph-top b{flex:1;font-size:17px;font-weight:600}
+.phsheet .ph-top button{color:#fff;font-size:20px;padding:4px 8px}
+.phsheet .ph-body{flex:1;overflow-y:auto;padding:8px}
+.phsheet .ph-foot{display:flex;align-items:flex-end;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+  background:#F0EBFA;border-top:1px solid var(--line)}
+.phsheet .ph-foot textarea{flex:1;border:0;outline:none;resize:none;max-height:110px;padding:11px 14px;
+  border-radius:22px;background:#fff;box-shadow:var(--sh);font-size:15px}
 .phgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
 .phcell{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;cursor:pointer;background:#EEE9F8}
 .phcell img{width:100%;height:100%;object-fit:cover;display:block;transition:.15s}
@@ -402,6 +412,8 @@ const SUPA_URL = 'https://zvdwimgmbxhvvdnmjuag.supabase.co';
 const SUPA_KEY = 'sb_publishable_0FbeQ-Y9mtRqlKHmKRXrHw_RjI-EHa1';
 
 const INVITE_CODE = 'WhatsApp777300>WhereApp$';   // без него регистрация не проходит
+// Файл приложения лежит рядом с сайтом. Залейте WhereApp.apk в тот же репозиторий.
+const APK_URL = 'WhereApp.apk';
 const MAX_FILE   = 20 * 1024 * 1024;    // 20 МБ на файл
 const IMG_TARGET = 1.5 * 1024 * 1024;   // цель сжатия фото
 const LIMIT_MSG  = 'Извините, но сайт имеет бесплатную базу данных, сожмите файл (лимит 20 МБ). Зато звонить можно!!';
@@ -504,7 +516,7 @@ async function idbPut(k,v){
 /* ---------- состояние ---------- */
 let sb, me={uid:null,name:'',code:'',pub:''};
 const chats=new Map(), profiles=new Map(), keyCache=new Map(), msgCache=new Map(), blobUrls=new Map();
-let curChat=null, msgChan=null, userChan=null, feedChan=null;
+let curChat=null, msgChan=null, userChan=null, feedChan=null, voteChan=null;
 let blocked=[];
 let localNames = JSON.parse(S.get('wa_names')||'{}');
 function displayName(uid){
@@ -633,6 +645,27 @@ $('#restoreGo').onclick=()=>{
   }catch(e){ toast('Ключ повреждён: '+e.message); }
 };
 
+function isAndroid(){ return /Android/i.test(navigator.userAgent); }
+function offerApk(force){
+  if(NATIVE) return;                              // уже внутри приложения
+  if(!force){
+    if(!isAndroid()) return;
+    if(S.get('wa_apk_off')==='1') return;
+  }
+  const {m,close}=modal('<h3>Установите приложение</h3>'
+    +'<p class="sub">Android замораживает сайт через несколько секунд после закрытия — это ограничение системы, обойти его страница не может.</p>'
+    +'<p style="font-size:14px;line-height:1.55;margin:0 0 8px"><b>С приложением:</b> сообщения приходят всегда, даже когда оно закрыто и телефон спит.</p>'
+    +'<p style="font-size:14px;line-height:1.55;margin:0 0 16px;color:var(--bad)"><b>В браузере:</b> уведомления перестают приходить вскоре после закрытия вкладки. Переписка и звонки работают, но о новых сообщениях вы узнаете, только открыв сайт.</p>'
+    +'<a class="btn" id="apkGo" href="'+APK_URL+'" download style="text-decoration:none">Скачать приложение</a>'
+    +'<div style="height:8px"></div><button class="btn ghost" id="apkNo">Остаться в браузере</button>'
+    +'<p class="note">Android спросит разрешение на установку из неизвестных источников — это нормально для файлов не из магазина.</p>');
+  m.querySelector('#apkNo').onclick=()=>{
+    S.set('wa_apk_off','1'); close();
+    toast('Хорошо. Помните: при закрытом сайте уведомления приходить не будут.',6000);
+  };
+  m.querySelector('#apkGo').onclick=()=>{ setTimeout(close,600); };
+}
+
 function startApp(){
   $('#gate').classList.add('hidden'); $('#app').classList.remove('hidden');
   $('#myCode').textContent = me.code.replace(/(\d{3})(\d{3})(\d{4})/,'$1 $2 $3');
@@ -646,6 +679,7 @@ function startApp(){
     if(window.Notification && Notification.permission==='granted') subscribePush();
   });
   nativeCall('setUid', me.uid);
+  setTimeout(()=>offerApk(false), 1500);
   loadChats(); watchChats(); watchCalls(); watchFeed();
   setInterval(()=>{ if(!document.hidden) loadChats(); }, 20000);
   flushOutbox();
@@ -1022,6 +1056,17 @@ async function openChat(id){
   markRead(id);
 
   if(msgChan) sb.removeChannel(msgChan);
+  if(voteChan) sb.removeChannel(voteChan);
+  // Голоса живут в отдельном канале: если таблицы нет, сообщения не пострадают
+  voteChan = sb.channel('votes:'+id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'poll_votes'},
+      ({new:row})=>{
+        if(!row || !row.msg_id) return;
+        if(!votes.has(row.msg_id)) votes.set(row.msg_id,{});
+        votes.get(row.msg_id)[row.uid]=row.choice;
+        if(curChat===id) renderMsgs(id);
+      })
+    .subscribe();
   msgChan = sb.channel('msgs:'+id)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'chat_id=eq.'+id},
       async ({new:row})=>{
@@ -1040,13 +1085,6 @@ async function openChat(id){
           m.ct=row.ct; m.iv=row.iv; m.edited=row.edited_at||Date.now();
           chatKey(chats.get(id)).then(k=>decText(k,m)).then(t=>{ m.text=t; if(curChat===id) renderMsgs(id); }).catch(()=>{});
         }
-        if(curChat===id) renderMsgs(id);
-      })
-    .on('postgres_changes',{event:'*',schema:'public',table:'poll_votes'},
-      ({new:row})=>{
-        if(!row || !row.msg_id) return;
-        if(!votes.has(row.msg_id)) votes.set(row.msg_id,{});
-        votes.get(row.msg_id)[row.uid]=row.choice;
         if(curChat===id) renderMsgs(id);
       })
     .on('postgres_changes',{event:'DELETE',schema:'public',table:'messages'},
@@ -1092,12 +1130,12 @@ async function absorb(id, rows){
         try{ m.replyText=await decText(key,m.reply); }catch(e){ m.replyText='🔒 зашифровано'; }
       } else m.replyText=icons[m.reply.kind]||'сообщение';
     }
-    if(m.kind==='poll'){
-      try{ m.poll=JSON.parse(m.text); }catch(e){ m.poll=null; }
-    }
     if(m.kind==='sys') m.text=m.plain||'';
     else if(key && m.ct){ try{ m.text=await decText(key,m); }catch(e){ m.text='🔒 не удалось расшифровать'; } }
     else m.text='🔒 нет ключа';
+    if(m.kind==='poll'){
+      try{ m.poll=JSON.parse(m.text); }catch(e){ m.poll=null; }
+    }
     cache.set(m.id,m);
   }
 }
@@ -1567,6 +1605,12 @@ async function sendMsg(kind, payload, toChat){
     if(!error) toast('Цитата не сохранена: выполните SQL с колонкой reply.',5000);
   }
   if(error) throw error;
+  // Показываем сразу: если realtime подвиснет, сообщение всё равно будет видно
+  try{
+    if(!msgCache.has(c.id)) msgCache.set(c.id,new Map());
+    await absorb(c.id,[Object.assign({},row,{delivered_to:[],read_by:[]})]);
+    if(curChat===c.id){ renderMsgs(c.id); scrollBottom(); }
+  }catch(e){}
   await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
   bumpChat(c.id, ts, {from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv});
@@ -1704,16 +1748,23 @@ async function openPhotoPicker(files){
   const items=await prepPhotos(files);
   if(!items.length) return toast('Не удалось прочитать фото.',3000);
   const rep=replyTo;
-  const quoted = rep ? '<div class="quote" style="cursor:default"><b>'+esc(rep.from===me.uid?'Вы':displayName(rep.from))
-      +'</b><span>'+esc(rep.text||'сообщение')+'</span></div>' : '';
-  const {m:box,close}=modal('<h3>Отправить фото</h3><p class="sub" id="phSub"></p>'+quoted
-    +'<div class="phgrid" id="phGrid"></div>'
-    +'<textarea class="inp" id="cap" rows="2" placeholder="Добавить подпись…" style="resize:vertical;margin-top:12px"></textarea>'
-    +'<div style="height:12px"></div><button class="btn" id="sendPh">Отправить</button>'
-    +'<div style="height:8px"></div><button class="btn ghost" id="noPh">Отмена</button>');
+  const quoted = rep ? '<div class="quote" style="cursor:default;margin:0 2px 8px"><b>'
+      +esc(rep.from===me.uid?'Вы':displayName(rep.from))+'</b><span>'+esc(rep.text||'сообщение')+'</span></div>' : '';
+
+  const sheet=el('div','phsheet');
+  sheet.innerHTML='<div class="ph-top"><button id="noPh">✕</button><b id="phSub"></b></div>'
+    +'<div class="ph-body">'+quoted+'<div class="phgrid" id="phGrid"></div></div>'
+    +'<div class="ph-foot"><textarea id="cap" rows="1" placeholder="Добавить подпись…"></textarea>'
+    +'<button class="circ" id="sendPh"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">'
+    +'<path d="M3 20.5l18-8.5L3 3.5 3 10l12 2-12 2z"/></svg></button></div>';
+  document.body.appendChild(sheet);
+  const box=sheet;
+  const close=()=>sheet.remove();
   photoState={items, box, close};
   const done=()=>{ items.forEach(i=>URL.revokeObjectURL(i.url)); photoState=null; close(); };
   box.querySelector('#noPh').onclick=done;
+  const cap=box.querySelector('#cap');
+  cap.addEventListener('input',()=>{ cap.style.height='auto'; cap.style.height=Math.min(cap.scrollHeight,110)+'px'; });
   drawPhotoGrid();
   box.querySelector('#sendPh').onclick=async()=>{
     const chosen=items.filter(i=>i.on);
@@ -1753,9 +1804,8 @@ function drawPhotoGrid(){
     g.appendChild(cell);
   });
   const n=items.filter(i=>i.on).length;
-  box.querySelector('#phSub').textContent = n?('Выбрано: '+n+' — можно добавить подпись'):'Ничего не выбрано';
-  const s=box.querySelector('#sendPh');
-  s.textContent = n>1 ? ('Отправить '+n+' фото') : 'Отправить';
+  const sub=box.querySelector('#phSub');
+  if(sub) sub.textContent = n ? ('Выбрано: '+n) : 'Ничего не выбрано';
 }
 $('#filePick').onchange=async e=>{
   const f=e.target.files[0]; e.target.value=''; if(!f) return;
@@ -2150,6 +2200,7 @@ $('#btnSettings').onclick=()=>{
     +'<div id="pushOut" class="note" style="margin-top:6px"></div>'
 
     +'<div style="height:8px"></div><button class="btn ghost" id="howTo">Как получать сообщения всегда</button>'
+    +(isAndroid() && !NATIVE ? '<div style="height:8px"></div><button class="btn ghost" id="getApk">Скачать приложение для Android</button>' : '')
     +'<div style="height:8px"></div><button class="btn ghost" id="blkList">Заблокированные ('+blocked.length+')</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="expK">Ключ для входа на другом устройстве</button>'
     +'<div id="keyOut" class="hidden" style="margin-top:10px"><textarea class="inp" id="keyTxt" rows="3" readonly style="font-size:11px;resize:vertical"></textarea>'
@@ -2316,6 +2367,8 @@ $('#btnSettings').onclick=()=>{
     }catch(e){ toast('Ошибка: '+(e.message||e),5000); }
     b.disabled=false; b.textContent='Перезапустить фоновый модуль';
   };
+  const ga=m.querySelector('#getApk');
+  if(ga) ga.onclick=()=>{ close(); offerApk(true); };
   q('#howTo').onclick=()=>{
     modal('<h3>Чтобы сообщения приходили всегда</h3>'
       +'<p class="sub">Вкладку браузера Android замораживает через несколько секунд — это не отключается. Работают только уведомления, и вот как настроить их правильно.</p>'
