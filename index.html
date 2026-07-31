@@ -841,7 +841,9 @@ function notifyBar(){
   };
 }
 async function notify(title, body, tag, icon){
-  beep();
+  // В приложении звук играет само уведомление Android.
+  // Свой сигнал звучал раньше него и опережал появление сообщения.
+  if(!NATIVE) beep();
   if(!window.Notification || Notification.permission!=='granted') return;
   // Когда push подписан или мы внутри android-оболочки, уведомление
   // покажет другой слой. Показать здесь тоже — значит получить два одинаковых.
