@@ -326,6 +326,7 @@ body.mini #app{padding-top:46px}
       <button id="selCancel">✕</button>
       <b id="selCount">0</b>
       <span style="flex:1"></span>
+      <button id="selOne" title="Ещё">⋯</button>
       <button id="selCopy" title="Копировать">📋</button>
       <button id="selShare" title="Переслать">↗</button>
       <button id="selDel" title="Удалить">🗑</button>
@@ -1183,21 +1184,25 @@ function renderMsgs(id){
     b.style.touchAction='pan-y';          // горизонталь остаётся нам, вертикаль — прокрутке
     b.addEventListener('contextmenu',ev=>{ ev.preventDefault(); msgMenu(m,b); });
     if(selMode && m.kind!=='sys'){
-      const dot=el('div','selдot');
+      const dot=el('div');
       dot.className='seldot'+(selected.has(m.id)?' on':'');
       dot.textContent=selected.has(m.id)?'✓':'';
       b.appendChild(dot);
       if(selected.has(m.id)) b.classList.add('sel');
     }
     b.addEventListener('click',ev=>{
-      if(!selMode) return;
+      if(!selMode || m.kind==='sys') return;
       ev.preventDefault(); ev.stopPropagation();
       selToggle(m);
-    });
+    },true);
     b.addEventListener('pointerdown',ev=>{
       if(selMode) return;
       sx=ev.clientX; sy=ev.clientY; drag=false; pid=ev.pointerId;
-      holdT=setTimeout(()=>{ if(!drag) msgMenu(m,b); },480);
+      holdT=setTimeout(()=>{
+        if(drag) return;
+        if(navigator.vibrate) navigator.vibrate(14);
+        selStart(m);
+      },420);
     });
     b.addEventListener('pointermove',ev=>{
       const dx=ev.clientX-sx, dy=ev.clientY-sy;
@@ -1645,19 +1650,27 @@ async function sendSystem(text){
 let drafts = JSON.parse(S.get('wa_drafts')||'{}');
 let selMode=false;
 const selected=new Set();
-function selUpdate(){
+function selUpdate(rerender){
   $('#selCount').textContent=selected.size;
   $('#selBar').classList.toggle('hidden',!selMode);
   $('#chatTop').style.display = selMode ? 'none' : 'flex';
+  $('#selOne').style.display = selected.size===1 ? 'block' : 'none';
   document.body.classList.toggle('selmode',selMode);
-  if(curChat) renderMsgs(curChat);
+  if(rerender && curChat) renderMsgs(curChat);
 }
-function selStart(m){ selMode=true; selected.clear(); selected.add(m.id); selUpdate(); }
-function selEnd(){ selMode=false; selected.clear(); selUpdate(); }
+function selPaint(m){
+  const b=document.getElementById('m_'+m.id); if(!b) return;
+  const on=selected.has(m.id);
+  b.classList.toggle('sel',on);
+  const dot=b.querySelector('.seldot');
+  if(dot){ dot.classList.toggle('on',on); dot.textContent=on?'✓':''; }
+}
+function selStart(m){ selMode=true; selected.clear(); selected.add(m.id); selUpdate(true); }
+function selEnd(){ selMode=false; selected.clear(); selUpdate(true); }
 function selToggle(m){
   if(selected.has(m.id)) selected.delete(m.id); else selected.add(m.id);
   if(!selected.size) return selEnd();
-  selUpdate();
+  selPaint(m); selUpdate(false);
 }
 function selItems(){
   const cache=msgCache.get(curChat); if(!cache) return [];
@@ -2469,6 +2482,11 @@ function fallbackCopy(t){
   i.remove();
 }
 $('#selCancel').onclick=selEnd;
+$('#selOne').onclick=()=>{
+  const items=selItems(); if(items.length!==1) return;
+  const m=items[0]; selEnd();
+  msgMenu(m, document.getElementById('m_'+m.id));
+};
 $('#selCopy').onclick=()=>{
   const items=selItems().filter(m=>m.text && m.kind!=='sys');
   if(!items.length) return toast('В выделенном нет текста.',2500);
