@@ -120,8 +120,8 @@ html[data-theme="dark"]{--wall:url("data:image/svg+xml;utf8,<svg xmlns='http://w
 .chat-top .ttl b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-top .ttl span{font-size:12px;opacity:.8}
 .msgs{flex:1;overflow-y:auto;padding:16px 8% 10px;display:flex;flex-direction:column;gap:4px;overscroll-behavior:contain}
-.selbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:12px;
-  padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:var(--p-dark);color:#fff;z-index:6}
+.selbar{display:flex;align-items:center;gap:12px;padding:9px 12px;
+  background:var(--p-dark);color:#fff;z-index:4;border-bottom:1px solid rgba(255,255,255,.12)}
 .selbar button{color:#fff;font-size:19px;padding:4px 6px}
 .selbar b{font-size:17px;font-weight:600}
 .bub.sel{outline:2.5px solid var(--p);outline-offset:1px}
@@ -384,16 +384,6 @@ body.mini #app{padding-top:46px}
   </aside>
 
   <main class="main" id="main">
-    <div class="selbar hidden" id="selBar">
-      <button id="selCancel">✕</button>
-      <b id="selCount">0</b>
-      <span style="flex:1"></span>
-      <button id="selCut" title="Вырезать часть">✂️</button>
-      <button id="selEdit" title="Изменить">✏️</button>
-      <button id="selCopy" title="Копировать">📋</button>
-      <button id="selShare" title="Переслать">↗</button>
-      <button id="selDel" title="Удалить">🗑</button>
-    </div>
     <div class="chat-top" id="chatTop" style="display:none">
       <button class="icobtn" id="btnBack" style="display:none">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 19l-7-7 7-7"/></svg>
@@ -414,6 +404,16 @@ body.mini #app{padding-top:46px}
       </button>
     </div>
 
+    <div class="selbar hidden" id="selBar">
+      <button id="selCancel">✕</button>
+      <b id="selCount">0</b>
+      <span style="flex:1"></span>
+      <button id="selCut" title="Вырезать часть">✂️</button>
+      <button id="selEdit" title="Изменить">✏️</button>
+      <button id="selCopy" title="Копировать">📋</button>
+      <button id="selShare" title="Переслать">↗</button>
+      <button id="selDel" title="Удалить">🗑</button>
+    </div>
     <div class="findbar hidden" id="findBar">
       <input id="findInput" placeholder="Поиск в переписке" autocomplete="off">
       <b id="findCount">0/0</b>
@@ -2934,7 +2934,9 @@ $('#selDel').onclick=()=>{
     close(); selEnd();
   };
 };
-$('#btnFind').onclick=findOpen;
+$('#btnFind').onclick=()=>{
+  if($('#findBar').classList.contains('hidden')) findOpen(); else findClose();
+};
 $('#findClose').onclick=findClose;
 $('#findPrev').onclick=()=>findGo(-1);
 $('#findNext').onclick=()=>findGo(1);
