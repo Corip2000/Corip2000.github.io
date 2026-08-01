@@ -106,6 +106,12 @@ button{cursor:pointer;border:0;background:none}
 .row-p{font-size:13.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 .badge{background:var(--p);color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;padding:0 6px}
 .empty{padding:44px 26px;text-align:center;color:var(--mut);font-size:14px}
+.archrow{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;
+  border-bottom:1px solid var(--line);color:var(--p-deep);font-size:14.5px}
+.archrow:hover{background:var(--row-hover)}
+.archrow span{flex:1}
+.archrow b{background:var(--p-soft);color:var(--p-dark);border-radius:10px;padding:1px 8px;font-size:12px}
+.rowicon{font-size:12px;opacity:.75;flex:none}
 .side-actions{padding:10px;display:flex;gap:8px;border-top:1px solid var(--line)}
 .side-actions .btn{padding:11px;font-size:14px}
 
@@ -617,6 +623,14 @@ const acting=new Map();          // uid -> {kind, until}
 let lastActSent=0, actTimer=null;
 let blocked=[];
 let localNames = JSON.parse(S.get('wa_names')||'{}');
+let chatOpts = JSON.parse(S.get('wa_chatopts')||'{}');   // id -> {pin, arch, mute}
+function opt(id){ return chatOpts[id] || {}; }
+function setOpt(id, patch){
+  chatOpts[id]=Object.assign({}, chatOpts[id]||{}, patch);
+  if(!chatOpts[id].pin && !chatOpts[id].arch && !chatOpts[id].mute) delete chatOpts[id];
+  S.set('wa_chatopts', JSON.stringify(chatOpts));
+}
+let showArchive=false;
 function displayName(uid){
   if(uid===me.uid) return me.name;
   if(localNames[uid]) return localNames[uid];
@@ -784,7 +798,12 @@ function startApp(){
   flushOutbox();
   document.addEventListener('click',()=>audioCtx(),{once:true});
   if(window.Notification && Notification.permission==='default' && !S.get('wa_nobar')) setTimeout(notifyBar,1500);
-  const beat=(on)=>sb.from('profiles').update({last_seen:Date.now(), online:on}).eq('id',me.uid).then(()=>{},()=>{});
+  const beat=(on)=>{
+    if(S.get('wa_hide_online')==='1'){
+      return sb.from('profiles').update({online:false}).eq('id',me.uid).then(()=>{},()=>{});
+    }
+    return sb.from('profiles').update({last_seen:Date.now(), online:on}).eq('id',me.uid).then(()=>{},()=>{});
+  };
   beat(true);
   setInterval(()=>{ if(!document.hidden) beat(true); }, 20000);
   document.addEventListener('visibilitychange',()=>{
@@ -967,6 +986,7 @@ function watchFeed(){
       const open = curChat===row.chat_id && !document.hidden;
       if(open) return;
       unread.add(row.chat_id); updateTitle();
+      if(opt(row.chat_id).mute) return;
       let body='Новое сообщение';
       const icons={image:'📷 Фото',audio:'🎤 Голосовое',file:'📎 Файл',video:'🎬 Видео'};
       if(row.kind==='text'){ try{ body=await decText(await chatKey(c),row); }catch(e){ body='Зашифрованное сообщение'; } }
@@ -1007,7 +1027,7 @@ async function getProfile(uid){
    ЧАТЫ
    ============================================================ */
 const normChat = r => ({id:r.id, type:r.type, name:r.name, owner:r.owner, members:r.members||[],
-                        admins:r.admins||[], avatar:r.avatar||null,
+                        admins:r.admins||[], avatar:r.avatar||null, ttl:Number(r.ttl)||0,
                         gkeys:r.gkeys||{}, last:r.last, pinned:r.pinned||null, updatedAt:Number(r.updated_at)||0});
 
 async function loadChats(){
@@ -1086,11 +1106,34 @@ function lastSeenText(ts){
 }
 function renderChatList(){
   const q=$('#searchInput').value.trim().toLowerCase();
-  const list=[...chats.values()].sort((a,b)=>b.updatedAt-a.updatedAt)
+  const all=[...chats.values()]
     .filter(c=>!(c.type==='direct' && isBlocked(c.members.find(u=>u!==me.uid))))
     .filter(c=>!q || chatTitle(c).toLowerCase().indexOf(q)>=0);
+  const archived=all.filter(c=>opt(c.id).arch);
+  const list=all.filter(c=>showArchive ? opt(c.id).arch : !opt(c.id).arch)
+    .sort((a,b)=>{
+      const pa=opt(a.id).pin?1:0, pb=opt(b.id).pin?1:0;
+      if(pa!==pb) return pb-pa;
+      return b.updatedAt-a.updatedAt;
+    });
   const box=$('#chatList'); box.innerHTML='';
-  if(!list.length){ box.innerHTML='<div class="empty">Пока пусто.<br>Добавьте контакт по 10-значному коду.</div>'; return; }
+
+  if(showArchive){
+    const back=el('div','archrow');
+    back.innerHTML='<span>← Назад к чатам</span><b>'+archived.length+'</b>';
+    back.onclick=()=>{ showArchive=false; renderChatList(); };
+    box.appendChild(back);
+  }else if(archived.length){
+    const a=el('div','archrow');
+    a.innerHTML='<span>🗄 Архив</span><b>'+archived.length+'</b>';
+    a.onclick=()=>{ showArchive=true; renderChatList(); };
+    box.appendChild(a);
+  }
+
+  if(!list.length){
+    box.appendChild(el('div','empty', showArchive?'В архиве пусто.':'Пока пусто. Добавьте контакт по 10-значному коду.'));
+    return;
+  }
   for(const c of list){
     const t=chatTitle(c), row=el('div','row'+(curChat===c.id?' on':''));
     const av=el('div','av',c.type==='group'?'👥':initials(t));
@@ -1099,11 +1142,21 @@ function renderChatList(){
     else if(c.type==='group') paintAv(av, null, '👥', c.avatar);
     else paintAv(av, c.members.find(u=>u!==me.uid), initials(t));
     const b=el('div','row-b');
-    const top=el('div','row-t'); top.append(el('b',null,t), el('i',null,c.updatedAt?hhmm(c.updatedAt):''));
+    const top=el('div','row-t');
+    const nameEl=el('b',null,t);
+    top.append(nameEl);
+    const o=opt(c.id);
+    if(o.mute) top.append(el('span','rowicon','🔕'));
+    if(o.pin) top.append(el('span','rowicon','📌'));
+    top.append(el('i',null,c.updatedAt?hhmm(c.updatedAt):''));
     const prev=el('div','row-p','…');
     b.append(top,prev); row.append(av,b);
     if(c.updatedAt>(seenAt[c.id]||0) && c.last && c.last.from!==me.uid) row.append(el('div','badge','●'));
     row.onclick=()=>openChat(c.id);
+    let rowHold=null;
+    row.addEventListener('pointerdown',()=>{ rowHold=setTimeout(()=>chatMenu(c),480); });
+    ['pointerup','pointerleave','pointercancel','pointermove'].forEach(e=>row.addEventListener(e,()=>clearTimeout(rowHold)));
+    row.addEventListener('contextmenu',ev=>{ ev.preventDefault(); chatMenu(c); });
     box.appendChild(row);
     previewText(c).then(s=>prev.textContent=s);
   }
@@ -1120,6 +1173,7 @@ async function previewText(c){
    СООБЩЕНИЯ
    ============================================================ */
 const normMsg = r => ({id:r.id, from:r.from_uid, ts:Number(r.ts), kind:r.kind, ct:r.ct, iv:r.iv,
+                       expires:Number(r.expires_at)||0,
                        delivered:r.delivered_to||[], read:r.read_by||[], reply:r.reply||null, edited:r.edited_at||null,
                        plain:r.plain, meta:r.meta, blob:r.blob});
 
@@ -1302,6 +1356,8 @@ function paintHeader(){
   $('#btnAudioCall').style.display = solo?'none':'grid';
   $('#btnVideoCall').style.display = solo?'none':'grid';
   if(solo) $('#topSub').textContent='Заметки только для вас';
+  const ttlOn=Number(c.ttl||0)>0;
+  $('#topName').textContent = (ttlOn?'⏳ ':'')+chatTitle(c);
   const act=actingText(c);
   if(act){
     $('#topSub').textContent=act;
@@ -1312,6 +1368,7 @@ function paintHeader(){
   if(c.type==='group') $('#topSub').textContent=c.members.length+' участник(ов)';
   else{
     const p=profiles.get(c.members.find(u=>u!==me.uid))||{};
+    if(S.get('wa_hide_online')==='1'){ $('#topSub').textContent = p.code?('код '+p.code):''; return; }
     const fresh = p.last_seen && Date.now()-Number(p.last_seen)<60000;
     const on = fresh && p.online !== false;
     $('#topSub').textContent = on ? 'в сети' : (p.last_seen ? 'был(а) '+lastSeenText(Number(p.last_seen)) : (p.code?'код '+p.code:''));
@@ -1320,7 +1377,11 @@ function paintHeader(){
 function renderMsgs(id){
   const box=$('#msgs'); const near = stickBottom || (box.scrollHeight-box.scrollTop-box.clientHeight < 200);
   box.innerHTML='';
-  const items=[...msgCache.get(id).values()].filter(m=>!isHidden(m.id)).concat(outboxFor(id)).sort((a,b)=>a.ts-b.ts);
+  const now=Date.now();
+  const items=[...msgCache.get(id).values()]
+    .filter(m=>!isHidden(m.id))
+    .filter(m=>!(m.expires && m.expires<=now))
+    .concat(outboxFor(id)).sort((a,b)=>a.ts-b.ts);
   if(!items.length){ box.innerHTML='<div class="empty" style="margin:auto">Сообщений пока нет. Напишите первым.</div>'; return; }
   let lastDay='';
   const grp=chats.get(id).type==='group';
@@ -1461,6 +1522,29 @@ let toolsEl=null;
 function closeTools(){
   if(toolsEl){ toolsEl.remove(); toolsEl=null; }
   document.querySelectorAll('.bub.sel').forEach(n=>n.classList.remove('sel'));
+}
+function chatMenu(c){
+  const o=opt(c.id);
+  const wrap=el('div','sheet'); const inner=el('div','sheet-in');
+  const mk=(t,fn,cls)=>{ const b=el('button',cls||null,t); b.onclick=()=>{ wrap.remove(); fn(); }; return b; };
+  inner.appendChild(el('div','peek', chatTitle(c)));
+  inner.appendChild(mk(o.pin?'📌  Открепить чат':'📌  Закрепить чат',()=>{
+    setOpt(c.id,{pin:!o.pin}); renderChatList();
+  }));
+  inner.appendChild(mk(o.mute?'🔔  Включить уведомления':'🔕  Отключить уведомления',()=>{
+    setOpt(c.id,{mute:!o.mute}); renderChatList();
+    toast(o.mute?'Уведомления включены':'Чат переведён в беззвучный режим',2600);
+  }));
+  inner.appendChild(mk(o.arch?'📤  Вернуть из архива':'🗄  В архив',()=>{
+    setOpt(c.id,{arch:!o.arch});
+    if(o.arch) showArchive=false;
+    renderChatList();
+  }));
+  inner.appendChild(mk('🧹  Очистить историю',()=>clearChat(c)));
+  inner.appendChild(mk('Отмена',()=>{}, 'cancel'));
+  wrap.appendChild(inner);
+  wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
+  document.body.appendChild(wrap);
 }
 function msgMenu(m, node){
   closeTools();
@@ -1637,7 +1721,8 @@ async function editMsg(m){
     }catch(e){ b.disabled=false; b.textContent='Сохранить'; toast('Не сохранилось: '+(e.message||e),8000); }
   };
 }
-async function shareMsg(m){
+async function shareMsg(m, many){
+  const items = many && many.length ? many : [m];
   const from=curChat;
   const list=[...chats.values()].filter(c=>c.id!==from)
     .filter(c=>!(c.type==='direct' && isBlocked(c.members.find(u=>u!==me.uid))))
@@ -1646,7 +1731,8 @@ async function shareMsg(m){
   const rows=list.map(c=>'<div class="pick shr" data-id="'+c.id+'">'
     +'<span class="av sav" data-id="'+c.id+'" style="width:36px;height:36px;font-size:13px;background:hsl('+hue(c.id)+' 55% 52%)"></span>'
     +'<b style="font-weight:600;flex:1">'+esc(chatTitle(c))+'</b></div>').join('');
-  const {m:box,close}=modal('<h3>Переслать</h3><p class="sub">Выберите, кому отправить</p>'+rows);
+  const {m:box,close}=modal('<h3>Переслать'+(items.length>1?' ('+items.length+')':'')+'</h3>'
+    +'<p class="sub">Выберите, кому отправить</p>'+rows);
   box.querySelectorAll('.sav').forEach(n=>{
     const c=chats.get(n.dataset.id);
     if(c.type==='group') paintAv(n,null,'👥',c.avatar);
@@ -1657,13 +1743,23 @@ async function shareMsg(m){
     row.style.opacity='.5';
     row.querySelector('b').textContent='Отправляем…';
     try{
-      if(m.kind==='text'){
-        await sendMsg('text',{text:m.text}, target);
-      }else{
-        const bytes=await blobBytes(from,m);
-        await sendMsg(m.kind,{bytes, text:m.text||'', meta:m.meta||{}}, target);
+      for(const it of items){
+        if(it.kind==='text' || it.kind==='poll'){
+          await sendMsg(it.kind==='poll'?'poll':'text',{text:it.text}, target);
+        }else if(it.kind==='album'){
+          const list=[];
+          for(let i=0;i<it.blob.list.length;i++){
+            const u=await loadAlbumItem(from,it,i);
+            const r=await fetch(u); const buf=new Uint8Array(await r.arrayBuffer());
+            list.push({bytes:buf, mime:'image/jpeg', name:'photo.jpg'});
+          }
+          await sendAlbum(list, it.text||'', null, target);
+        }else{
+          const bytes=await blobBytes(from,it);
+          await sendMsg(it.kind,{bytes, text:it.text||'', meta:it.meta||{}}, target);
+        }
       }
-      close(); toast('Переслано.',2200); renderChatList();
+      close(); toast(items.length>1?('Переслано: '+items.length):'Переслано.',2400); renderChatList();
     }catch(e){ close(); toast('Не переслалось: '+(e.message||e),6000); }
   });
 }
@@ -1718,6 +1814,46 @@ function lightbox(u, name){
 
   w.onclick=()=>w.remove();
   document.body.appendChild(w);
+}
+
+/* ---------- исчезающие сообщения ---------- */
+setInterval(async ()=>{
+  if(!curChat) return;
+  const cache=msgCache.get(curChat); if(!cache) return;
+  const now=Date.now();
+  const dead=[...cache.values()].filter(m=>m.expires && m.expires<=now).map(m=>m.id);
+  if(!dead.length) return;
+  dead.forEach(id=>cache.delete(id));
+  renderMsgs(curChat);
+  try{ await sb.from('messages').delete().in('id',dead); }catch(e){}
+}, 5000);
+
+function ttlText(sec){
+  if(!sec) return 'выключены';
+  if(sec<3600) return (sec/60)+' мин';
+  if(sec<86400) return (sec/3600)+' ч';
+  return (sec/86400)+' дн';
+}
+function ttlMenu(c, close){
+  const opts=[[0,'Выключить'],[60,'1 минута'],[3600,'1 час'],[86400,'1 день'],[604800,'1 неделя']];
+  const wrap=el('div','sheet'); const inner=el('div','sheet-in');
+  inner.appendChild(el('div','peek','Сообщения будут удаляться у всех по истечении срока'));
+  opts.forEach(([sec,label])=>{
+    const b=el('button',null,(Number(c.ttl||0)===sec?'✓  ':'  ')+label);
+    b.onclick=async()=>{
+      wrap.remove();
+      const {error}=await sb.from('chats').update({ttl:sec}).eq('id',c.id);
+      if(error) return toast('Ошибка: '+error.message,6000);
+      c.ttl=sec;
+      if(close) close();
+      toast(sec?('Исчезающие сообщения: '+ttlText(sec)):'Исчезающие сообщения выключены',3000);
+    };
+    inner.appendChild(b);
+  });
+  inner.appendChild(el('button','cancel','Отмена')).onclick=()=>wrap.remove();
+  wrap.appendChild(inner);
+  wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
+  document.body.appendChild(wrap);
 }
 
 /* ---------- поиск по переписке ---------- */
@@ -1891,6 +2027,8 @@ async function sendMsg(kind, payload, toChat){
   const enc=await encText(key, payload.text||'');
   const row={id:rid(22), chat_id:c.id, from_uid:me.uid, ts, kind, ct:enc.ct, iv:enc.iv};
   if(payload.reply) row.reply={id:payload.reply.id, from:payload.reply.from, kind:payload.reply.kind, ct:payload.reply.ct, iv:payload.reply.iv};
+  const ttl=Number(c.ttl||0);
+  if(ttl>0) row.expires_at = ts + ttl*1000;
   if(payload.bytes){
     setProg(.15);
     row.blob=await putBlob(c.id,key,payload.bytes,payload.meta&&payload.meta.mime);
@@ -2449,6 +2587,7 @@ $('#btnChatInfo').onclick=async()=>{
       +'<label class="field" style="margin-top:14px"><b>Имя у вас в списке</b>'
       +'<input class="inp" id="nick" maxlength="28" value="'+esc(localNames[other]||'')+'" placeholder="'+esc(p.name||'')+'"></label>'
       +'<button class="btn ghost" id="saveNick">Сохранить имя</button>'
+      +'<div style="height:8px"></div><button class="btn ghost" id="ttlC">Исчезающие сообщения: <b id="ttlV"></b></button>'
       +'<div style="height:8px"></div><button class="btn ghost" id="clrC">Очистить историю</button>'
       +'<div style="height:8px"></div><button class="btn danger" id="blkC">'+(isBlocked(other)?'Разблокировать':'Заблокировать')+'</button>'
       +'<p class="note">Общий ключ вычисляется из ваших ключевых пар и никуда не передаётся. Сервер хранит только шифротекст.</p>');
@@ -2461,6 +2600,8 @@ $('#btnChatInfo').onclick=async()=>{
       close(); renderChatList(); if(curChat===c.id) paintHeader();
       toast('Имя изменено только у вас — собеседник этого не увидит.',3800);
     };
+    m.querySelector('#ttlV').textContent=ttlText(Number(c.ttl||0));
+    m.querySelector('#ttlC').onclick=()=>ttlMenu(c, close);
     m.querySelector('#clrC').onclick=()=>clearChat(c, close);
     m.querySelector('#blkC').onclick=async()=>{
       if(isBlocked(other)){ blocked=blocked.filter(u=>u!==other); toast('Пользователь разблокирован.',2400); }
@@ -2509,7 +2650,8 @@ $('#btnChatInfo').onclick=async()=>{
       ? '<b style="font-size:12px;color:var(--mut)">ДОБАВИТЬ УЧАСТНИКА</b><select class="inp" id="addSel">'+opts+'</select>'
         +'<div style="height:8px"></div><button class="btn ghost" id="addM">Добавить в группу</button>'
       : (iAm?'<p class="sub">Все ваши контакты уже в группе.</p>':''))
-    +'<div style="height:10px"></div><button class="btn ghost" id="clrG">Очистить историю</button>'
+    +'<div style="height:10px"></div><button class="btn ghost" id="ttlG">Исчезающие сообщения: <b></b></button>'
+    +'<div style="height:8px"></div><button class="btn ghost" id="clrG">Очистить историю</button>'
     +'<div style="height:8px"></div><button class="btn danger" id="leaveG">Выйти из группы</button>'
     +(iAm?'<p class="note">Звезда рядом с участником делает его администратором: он сможет менять фото и название группы, добавлять и удалять людей.</p>':''));
 
@@ -2593,6 +2735,8 @@ $('#btnChatInfo').onclick=async()=>{
     }catch(e){ toast('Ошибка: '+e.message); }
   };
 
+  const tg=m.querySelector('#ttlG');
+  if(tg){ tg.querySelector('b').textContent=ttlText(Number(c.ttl||0)); tg.onclick=()=>ttlMenu(c, close); }
   m.querySelector('#clrG').onclick=()=>clearChat(c, close);
   m.querySelector('#leaveG').onclick=async()=>{
     await sb.from('chats').update({members:c.members.filter(u=>u!==me.uid), admins:(c.admins||[]).filter(u=>u!==me.uid)}).eq('id',c.id);
@@ -2612,6 +2756,8 @@ $('#btnSettings').onclick=()=>{
     +'<div style="height:8px"></div><button class="btn ghost" id="notifBtn">Включить уведомления</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="diagBtn">Проверить уведомления</button>'
     +'<pre id="diagOut" class="hidden" style="white-space:pre-wrap;font-size:11.5px;background:#F6F3FC;border-radius:10px;padding:12px;margin-top:10px;line-height:1.6"></pre>'
+    +'<label class="pick" style="margin-top:10px"><input type="checkbox" id="hideOnline">'
+    +'<span style="flex:1">Скрывать, что я в сети<div style="font-size:12.5px;color:var(--mut)">Вы тоже перестанете видеть чужой статус</div></span></label>'
     +'<label class="field" style="margin-top:14px"><b>Оформление</b>'
     +'<select class="inp" id="themeSel">'
     +'<option value="auto">Как в системе</option>'
@@ -2642,6 +2788,15 @@ $('#btnSettings').onclick=()=>{
     me.name=n; profiles.set(me.uid,Object.assign({},profiles.get(me.uid),{name:n}));
     close(); renderChatList(); toast('Имя обновлено — его увидят все контакты.');
   };
+  const ho=m.querySelector('#hideOnline');
+  if(ho){
+    ho.checked = S.get('wa_hide_online')==='1';
+    ho.onchange=()=>{
+      S.set('wa_hide_online', ho.checked?'1':'0');
+      sb.from('profiles').update({online:!ho.checked, last_seen:Date.now()}).eq('id',me.uid).then(()=>{},()=>{});
+      if(curChat) paintHeader();
+    };
+  }
   const ts=m.querySelector('#themeSel');
   if(ts){
     ts.value=S.get('wa_theme')||'auto';
@@ -2906,8 +3061,7 @@ $('#selCopy').onclick=()=>{
 $('#selShare').onclick=()=>{
   const items=selItems();
   if(!items.length) return;
-  if(items.length>1) toast('Переслать можно по одному сообщению.',3000);
-  const m=items[0]; selEnd(); shareMsg(m);
+  selEnd(); shareMsg(items[0], items);
 };
 $('#selDel').onclick=()=>{
   const items=selItems(); if(!items.length) return;
