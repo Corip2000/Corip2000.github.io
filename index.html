@@ -27,7 +27,24 @@ html[data-theme="dark"]{
   --chat-bg:#171226; --bub:#241D38; --field:#221B34; --comp:#1B1629;
   --row-hover:#221B34; --pattern:%23332a4d;
 }
-html[data-theme="dark"] .mycode button{background:var(--panel)}
+html[data-theme="dark"]{ --p-deep:#EDE9F5; }
+html[data-theme="dark"] .mycode{background:#241B3D;color:#DCD3F5}
+html[data-theme="dark"] .mycode button{background:#3A2D5E;color:#EDE9F5}
+html[data-theme="dark"] .btn.ghost{background:#33285A;color:#EDE9F5}
+html[data-theme="dark"] .bub .who{color:#C4B5FD}
+html[data-theme="dark"] .quote b{color:#C4B5FD}
+html[data-theme="dark"] .rb-body b{color:#C4B5FD}
+html[data-theme="dark"] .poll-txt b{color:#C4B5FD}
+html[data-theme="dark"] .pinbar{color:#C4B5FD}
+html[data-theme="dark"] .poll-fill{background:#3A2A63}
+html[data-theme="dark"] .poll-opt.mine .poll-fill{background:#4B357F}
+html[data-theme="dark"] .phcam{background:#2A1F45;color:#DCD3F5}
+html[data-theme="dark"] .cpc,html[data-theme="dark"] .unb{background:#33285A!important;color:#EDE9F5!important}
+html[data-theme="dark"] .sys{background:#3A3020;color:#F0DFA8}
+html[data-theme="dark"] .bub.hl{animation:flashDark 1.1s ease}
+@keyframes flashDark{0%,100%{background:inherit}30%{background:#4A3A1E}}
+html[data-theme="dark"] .lb-bar{background:#0F0A1C}
+html[data-theme="dark"] .toast{background:#332A52}
 html[data-theme="dark"] .day{background:rgba(40,32,64,.9)}
 html[data-theme="dark"] .modal{background:var(--panel)}
 html[data-theme="dark"] .sheet-in{background:var(--panel)}
@@ -115,6 +132,15 @@ html[data-theme="dark"]{--wall:url("data:image/svg+xml;utf8,<svg xmlns='http://w
 .seldot.on{background:var(--p);border-color:var(--p)}
 .bub.me .seldot{right:auto;left:-8px}
 .selmode .bub{cursor:pointer}
+.findbar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);
+  border-bottom:1px solid var(--line);z-index:3}
+.findbar input{flex:1;border:0;outline:none;background:var(--field);color:var(--txt);
+  padding:9px 13px;border-radius:20px;font-size:15px}
+.findbar b{font-size:13px;color:var(--mut);min-width:38px;text-align:center}
+.findbar button{color:var(--p-dark);font-size:17px;padding:4px 7px}
+mark{background:#FFE58A;color:#2A1A00;border-radius:3px;padding:0 1px}
+html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
+.bub.found{outline:2px solid var(--p);outline-offset:1px}
 .pinbar{display:flex;align-items:center;gap:9px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);
   color:var(--p-dark);font-size:13.5px;cursor:pointer;z-index:2}
 .pinbar span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--txt)}
@@ -187,6 +213,14 @@ html[data-theme="dark"]{--wall:url("data:image/svg+xml;utf8,<svg xmlns='http://w
 .album.one{grid-template-columns:1fr}
 .album-i{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#ddd6ee;cursor:zoom-in}
 .album.one .album-i{aspect-ratio:auto;max-height:340px;object-fit:contain;background:#0002}
+.reacts{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.reac{background:var(--p-soft);border:1px solid transparent;border-radius:12px;padding:2px 8px;
+  font-size:13px;line-height:1.5;color:var(--txt)}
+.reac.mine{border-color:var(--p);background:var(--own)}
+.reactbar{position:fixed;z-index:70;display:flex;gap:2px;background:var(--panel);border-radius:26px;
+  padding:6px 8px;box-shadow:0 8px 26px rgba(30,0,70,.35)}
+.reactbar button{font-size:24px;padding:4px 6px;line-height:1;transition:transform .12s}
+.reactbar button:active{transform:scale(1.35)}
 .poll{min-width:240px;max-width:340px}
 .poll-q{font-weight:700;font-size:14.8px;margin:2px 0 8px}
 .poll-opt{position:relative;border:1.5px solid var(--line);border-radius:9px;margin-bottom:6px;
@@ -372,11 +406,21 @@ body.mini #app{padding-top:46px}
       <button class="icobtn" id="btnVideoCall" title="Видеозвонок">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
       </button>
+      <button class="icobtn" id="btnFind" title="Поиск в чате">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </button>
       <button class="icobtn" id="btnChatInfo" title="Сведения">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
       </button>
     </div>
 
+    <div class="findbar hidden" id="findBar">
+      <input id="findInput" placeholder="Поиск в переписке" autocomplete="off">
+      <b id="findCount">0/0</b>
+      <button id="findPrev">↑</button>
+      <button id="findNext">↓</button>
+      <button id="findClose">✕</button>
+    </div>
     <div class="pinbar hidden" id="pinBar">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="flex:none"><path d="M14 2l8 8-3 1-4 4-1 6-2 1-4-4-5 5-1-1 5-5-4-4 1-2 6-1 4-4z"/></svg>
       <span id="pinText">—</span>
@@ -1095,6 +1139,7 @@ async function openChat(id){
   $('#chatTop').style.display='flex'; $('#composer').style.display='flex';
   $('#main').classList.add('open'); $('#btnBack').style.display = innerWidth<=820?'grid':'none';
   if(selMode) selEnd();
+  if(!$('#findBar').classList.contains('hidden')) findClose();
   nativeCall('setActiveChat', id);
   paintHeader(); renderChatList();
   const ip=$('#msgInput');
@@ -1106,8 +1151,10 @@ async function openChat(id){
   const {data,error}=await sb.from('messages').select('*').eq('chat_id',id).order('ts',{ascending:false}).limit(150);
   if(error){ $('#msgs').innerHTML='<div class="empty">Ошибка: '+esc(error.message)+'</div>'; return; }
   await absorb(id, data.reverse());
+  const allIds=[...msgCache.get(id).values()].map(m=>m.id);
   const pollIds=[...msgCache.get(id).values()].filter(m=>m.kind==='poll').map(m=>m.id);
   await loadVotes(pollIds);
+  await loadReacts(allIds);
   renderMsgs(id);
   setTimeout(scrollBottom,50);
   markRead(id);
@@ -1127,6 +1174,16 @@ async function openChat(id){
   if(voteChan) sb.removeChannel(voteChan);
   // Голоса живут в отдельном канале: если таблицы нет, сообщения не пострадают
   voteChan = sb.channel('votes:'+id)
+    .on('postgres_changes',{event:'*',schema:'public',table:'reactions'},
+      ({eventType,new:row,old})=>{
+        if(eventType==='DELETE'){
+          if(old && old.msg_id && reacts.has(old.msg_id)){ delete reacts.get(old.msg_id)[old.uid]; }
+        }else if(row && row.msg_id){
+          if(!reacts.has(row.msg_id)) reacts.set(row.msg_id,{});
+          reacts.get(row.msg_id)[row.uid]=row.emoji;
+        }
+        if(curChat===id) renderMsgs(id);
+      })
     .on('postgres_changes',{event:'*',schema:'public',table:'poll_votes'},
       ({new:row})=>{
         if(!row || !row.msg_id) return;
@@ -1274,7 +1331,7 @@ function renderMsgs(id){
     const mine=m.from===me.uid;
     const b=el('div','bub'+(mine?' me':'')+(m.pending?' pending':''));
     b.id='m_'+m.id;
-    let holdT=null, sx=0, sy=0, drag=false, pid=null;
+    let holdT=null, sx=0, sy=0, drag=false, pid=null, lastTap=0;
     b.style.touchAction='pan-y';          // горизонталь остаётся нам, вертикаль — прокрутке
     b.addEventListener('contextmenu',ev=>{ ev.preventDefault(); msgMenu(m,b); });
     if(selMode && m.kind!=='sys'){
@@ -1292,9 +1349,18 @@ function renderMsgs(id){
     b.addEventListener('pointerdown',ev=>{
       if(selMode) return;
       sx=ev.clientX; sy=ev.clientY; drag=false; pid=ev.pointerId;
+      const now=Date.now();
+      if(!selMode && m.kind!=='sys' && now-lastTap<300){
+        lastTap=0;
+        if(navigator.vibrate) navigator.vibrate(10);
+        toggleReact(m, REACTIONS[0]);      // двойной тап — сердце
+        return;
+      }
+      lastTap=now;
       holdT=setTimeout(()=>{
         if(drag) return;
         if(navigator.vibrate) navigator.vibrate(14);
+        reactBar(m, b);
         selStart(m);
       },420);
     });
@@ -1349,7 +1415,11 @@ function renderMsgs(id){
       if(m.text) b.appendChild(el('div','txt',m.text));
     }
     else if(m.kind==='poll') renderPoll(b,m);
-    else if(m.kind==='text') b.appendChild(el('div','txt',m.text));
+    else if(m.kind==='text'){
+      const t=el('div','txt');
+      hiText(t, m.text);
+      b.appendChild(t);
+    }
     else if(m.kind==='image'){
       const img=el('img','ph'); img.alt='фото'; b.appendChild(img);
       loadBlob(id,m).then(u=>{
@@ -1378,6 +1448,7 @@ function renderMsgs(id){
       };
       b.appendChild(card);
     }
+    renderReacts(b, m);
     const meta=el('div','meta',(m.edited?'изменено · ':'')+hhmm(m.ts));
     if(mine) meta.appendChild(tickEl(m, chats.get(id)));
     b.appendChild(meta);
@@ -1647,6 +1718,58 @@ function lightbox(u, name){
 
   w.onclick=()=>w.remove();
   document.body.appendChild(w);
+}
+
+/* ---------- поиск по переписке ---------- */
+let findHits=[], findPos=-1, findQuery='';
+function findOpen(){
+  $('#findBar').classList.remove('hidden');
+  $('#findInput').value=''; $('#findInput').focus();
+  findHits=[]; findPos=-1; findQuery='';
+  $('#findCount').textContent='0/0';
+}
+function findClose(){
+  $('#findBar').classList.add('hidden');
+  findHits=[]; findPos=-1; findQuery='';
+  if(curChat) renderMsgs(curChat);
+}
+function findRun(){
+  const q=$('#findInput').value.trim().toLowerCase();
+  findQuery=q;
+  const cache=curChat?msgCache.get(curChat):null;
+  if(!q || !cache){ findHits=[]; findPos=-1; $('#findCount').textContent='0/0'; renderMsgs(curChat); return; }
+  findHits=[...cache.values()]
+    .filter(m=>!isHidden(m.id) && m.text && m.text.toLowerCase().indexOf(q)>=0)
+    .sort((a,b)=>a.ts-b.ts).map(m=>m.id);
+  findPos = findHits.length ? findHits.length-1 : -1;   // начинаем с самого свежего
+  renderMsgs(curChat);
+  findGo(0);
+}
+function findGo(step){
+  if(!findHits.length){ $('#findCount').textContent='0/0'; return; }
+  findPos=(findPos+step+findHits.length)%findHits.length;
+  $('#findCount').textContent=(findPos+1)+'/'+findHits.length;
+  document.querySelectorAll('#msgs .bub.found').forEach(n=>n.classList.remove('found'));
+  const node=document.getElementById('m_'+findHits[findPos]);
+  if(node){
+    node.classList.add('found');
+    node.scrollIntoView({block:'center',behavior:'smooth'});
+  }
+}
+function hiText(node, text){
+  if(!findQuery){ node.textContent=text; return; }
+  node.textContent='';
+  const low=text.toLowerCase();
+  let i=0;
+  while(true){
+    const j=low.indexOf(findQuery,i);
+    if(j<0){ node.appendChild(document.createTextNode(text.slice(i))); break; }
+    node.appendChild(document.createTextNode(text.slice(i,j)));
+    const mk=document.createElement('mark');
+    mk.textContent=text.slice(j,j+findQuery.length);
+    node.appendChild(mk);
+    i=j+findQuery.length;
+  }
 }
 
 /* ---------- файлы через хранилище ---------- */
@@ -2073,6 +2196,64 @@ async function compress(file, maxDim, target){
 }
 
 /* ---------- опросы ---------- */
+const REACTIONS=['❤️','👍','😂','😮','😢','🔥'];
+const reacts = new Map();        // msgId -> { uid: эмодзи }
+
+async function loadReacts(ids){
+  if(!ids.length) return;
+  try{
+    const {data}=await sb.from('reactions').select('msg_id,uid,emoji').in('msg_id',ids);
+    (data||[]).forEach(r=>{
+      if(!reacts.has(r.msg_id)) reacts.set(r.msg_id,{});
+      reacts.get(r.msg_id)[r.uid]=r.emoji;
+    });
+  }catch(e){}
+}
+async function toggleReact(m, emoji){
+  const cur=reacts.get(m.id)||{};
+  const same=cur[me.uid]===emoji;
+  if(same) delete cur[me.uid]; else cur[me.uid]=emoji;
+  reacts.set(m.id,cur);
+  if(curChat) renderMsgs(curChat);
+  try{
+    if(same) await sb.from('reactions').delete().eq('msg_id',m.id).eq('uid',me.uid);
+    else await sb.from('reactions').upsert({msg_id:m.id, uid:me.uid, emoji:emoji, ts:Date.now()},{onConflict:'msg_id,uid'});
+  }catch(e){ toast('Реакция не сохранилась: '+(e.message||e),5000); }
+}
+function renderReacts(b, m){
+  const r=reacts.get(m.id); if(!r) return;
+  const list=Object.values(r); if(!list.length) return;
+  const counts={};
+  list.forEach(e=>counts[e]=(counts[e]||0)+1);
+  const box=el('div','reacts');
+  Object.keys(counts).forEach(e=>{
+    const mine=r[me.uid]===e;
+    const chip=el('button','reac'+(mine?' mine':''));
+    chip.textContent=e+(counts[e]>1?' '+counts[e]:'');
+    chip.onclick=ev=>{ ev.stopPropagation(); if(!selMode) toggleReact(m,e); };
+    box.appendChild(chip);
+  });
+  b.appendChild(box);
+}
+function reactBar(m, node){
+  const old=document.querySelector('.reactbar'); if(old) old.remove();
+  const bar=el('div','reactbar');
+  REACTIONS.forEach(e=>{
+    const b=el('button',null,e);
+    b.onclick=ev=>{ ev.stopPropagation(); bar.remove(); toggleReact(m,e); };
+    bar.appendChild(b);
+  });
+  document.body.appendChild(bar);
+  const r=node.getBoundingClientRect();
+  const w=bar.offsetWidth||250;
+  bar.style.left=Math.max(8, Math.min(innerWidth-w-8, r.left+r.width/2-w/2))+'px';
+  const top=r.top-bar.offsetHeight-8;
+  bar.style.top=(top>70?top:r.bottom+8)+'px';
+  setTimeout(()=>document.addEventListener('pointerdown',function away(ev){
+    if(!bar.contains(ev.target)){ bar.remove(); document.removeEventListener('pointerdown',away,true); }
+  },true),320);
+}
+
 const votes = new Map();          // msgId -> { uid: индекс варианта }
 
 function pollCreate(){
@@ -2753,6 +2934,13 @@ $('#selDel').onclick=()=>{
     close(); selEnd();
   };
 };
+$('#btnFind').onclick=findOpen;
+$('#findClose').onclick=findClose;
+$('#findPrev').onclick=()=>findGo(-1);
+$('#findNext').onclick=()=>findGo(1);
+let findT=null;
+$('#findInput').addEventListener('input',()=>{ clearTimeout(findT); findT=setTimeout(findRun,220); });
+$('#findInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); findGo(1); } });
 $('#replyOff').onclick=clearReply;
 $('#searchInput').oninput=renderChatList;
 $('#btnBack').onclick=()=>{
