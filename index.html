@@ -290,13 +290,15 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
 .cbtn{width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.15);color:#fff;display:grid;place-items:center}
 .cbtn.off{background:#fff;color:#2A0B57}
 .cbtn.end{background:var(--bad)}
-.callmini{position:fixed;top:0;left:0;right:0;z-index:58;background:linear-gradient(135deg,var(--p),var(--p-dark));
-  color:#fff;padding:9px 12px;display:flex;align-items:center;gap:10px;font-size:14px;box-shadow:0 2px 12px rgba(40,0,90,.4)}
-.callmini .pip{width:9px;height:9px;border-radius:50%;background:#5CE39B;flex:none;animation:pulse 1.4s infinite}
-.callmini b{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.callmini button{background:rgba(255,255,255,.2);color:#fff;padding:7px 12px;border-radius:9px;font-weight:600;font-size:13px;flex:none}
-.callmini button.end{background:var(--bad)}
-body.mini #app{padding-top:46px}
+/* Свёрнутый звонок: компактная плашка сбоку, интерфейс не сдвигается */
+.callmini{position:fixed;right:10px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:58;
+  background:linear-gradient(135deg,var(--p),var(--p-dark));color:#fff;border-radius:22px;
+  padding:7px 8px 7px 12px;display:flex;align-items:center;gap:8px;font-size:13px;
+  box-shadow:0 6px 20px rgba(40,0,90,.45);cursor:pointer;touch-action:none;user-select:none}
+.callmini .pip{width:8px;height:8px;border-radius:50%;background:#5CE39B;flex:none;animation:pulse 1.4s infinite}
+.callmini #miniTime{font-variant-numeric:tabular-nums;font-weight:600}
+.callmini button.end{background:var(--bad);color:#fff;width:26px;height:26px;border-radius:50%;
+  display:grid;place-items:center;font-size:14px;flex:none}
 .outmenu{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);background:#fff;color:var(--txt);
   border-radius:14px;padding:6px;z-index:62;box-shadow:0 10px 30px rgba(0,0,0,.4);width:min(320px,90vw)}
 .outmenu button{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border-radius:10px;font-size:14.5px;text-align:left}
@@ -1975,7 +1977,10 @@ async function flushOutbox(){
   }
   renderChatList();
 }
-addEventListener('online', ()=>{ toast('Связь появилась, досылаем сообщения…',2200); flushOutbox(); });
+addEventListener('online', ()=>{
+  toast('Связь появилась, досылаем сообщения…',2200); flushOutbox();
+  if(call) call.peers.forEach((p,uid)=>{ p.tries=0; restartIce(uid); });
+});
 setInterval(flushOutbox, 12000);
 
 /* мгновенная перестановка чата наверх, не дожидаясь ответа сервера */
@@ -3180,6 +3185,22 @@ function showIncoming(inv){
   };
 }
 
+let wakeLock=null;
+async function keepAwake(on){
+  try{
+    if(on){
+      if('wakeLock' in navigator && !wakeLock){
+        wakeLock=await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release',()=>{ wakeLock=null; });
+      }
+    }else if(wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{
+  // после возврата в приложение блокировку экрана нужно запросить заново
+  if(!document.hidden && call) keepAwake(true);
+});
+
 async function joinRoom(roomId, chat, video, isCaller){
   const many=(chat.members||[]).length>2;
   const vCons = many ? {width:{ideal:640},height:{ideal:360},frameRate:{ideal:20,max:24},facingMode:'user'}
@@ -3189,7 +3210,9 @@ async function joinRoom(roomId, chat, video, isCaller){
     stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}, video: video?vCons:false});
   }catch(e){ toast('Нет доступа к камере или микрофону. Разрешите доступ в настройках браузера.'); throw e; }
 
-  call={roomId, chatId:chat.id, video, stream, peers:new Map(), known:new Set(), started:Date.now(), chat};
+  call={roomId, chatId:chat.id, video, stream, peers:new Map(), known:new Set(), started:Date.now(), chat,
+        speaker:video, muted:false};
+  keepAwake(true);
   buildCallUI(chat, isCaller);
 
   const ch = sb.channel('room:'+roomId, {config:{presence:{key:me.uid}, broadcast:{self:false}}});
@@ -3234,7 +3257,7 @@ function pcFor(uid){
     if(st==='disconnected'){
       setStatus('Связь пропала, восстанавливаем…');
       clearTimeout(p.retryT);
-      p.retryT=setTimeout(()=>{ if(['disconnected','failed'].indexOf(pc.iceConnectionState)>=0) restartIce(uid); },3500);
+      p.retryT=setTimeout(()=>{ if(['disconnected','failed'].indexOf(pc.iceConnectionState)>=0) restartIce(uid); },2000);
     }
     if(st==='failed') restartIce(uid);
   };
@@ -3247,7 +3270,7 @@ async function restartIce(uid){
   if(me.uid>uid) return;                       // переподключение инициирует одна сторона
   if(p.restarting) return;
   p.tries=(p.tries||0)+1;
-  if(p.tries>4){ setStatus('Не удалось восстановить связь'); return; }
+  if(p.tries>12){ setStatus('Не удалось восстановить связь'); return; }
   p.restarting=true;
   setStatus('Восстанавливаем связь… ('+p.tries+')');
   try{
@@ -3256,7 +3279,11 @@ async function restartIce(uid){
     await capBitrate(p.pc);
     sig(uid,'offer',JSON.stringify(o));
   }catch(e){}
-  setTimeout(()=>{ p.restarting=false; },6000);
+  setTimeout(()=>{
+    p.restarting=false;
+    // если за это время не поднялось — пробуем снова
+    if(call && ['disconnected','failed'].indexOf(p.pc.iceConnectionState)>=0) restartIce(uid);
+  },5000);
 }
 async function makeOffer(uid){
   const p=pcFor(uid);
@@ -3312,7 +3339,6 @@ function buildCallUI(chat,isCaller){
     +'<button id="cMin" style="position:absolute;top:14px;left:14px;color:#fff;padding:8px;font-size:22px;line-height:1">⌄</button>'
     +'<div class="call-head"><b>'+esc(chat.type==='group'?(chat.name||'Группа'):chatTitle(chat))+'</b>'
     +'<span id="callStatus">'+(isCaller?'Вызываем…':'Подключаемся…')+'</span></div>'
-    +'<button id="cMin" title="Свернуть"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg></button>'
     +'<div class="grid" id="grid"></div>'
     +'<div class="call-bar">'
     +'<button class="cbtn" id="cMic"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/><path d="M18 11a1 1 0 0 1 2 0 8 8 0 0 1-7 7.9V21h-2v-2.1A8 8 0 0 1 4 11a1 1 0 0 1 2 0 6 6 0 0 0 12 0z"/></svg></button>'
@@ -3324,18 +3350,13 @@ function buildCallUI(chat,isCaller){
   $('#cOut').onclick=outputMenu;
   addTile(me.uid,'Вы',true);
   if(!call.video){ const t=document.getElementById('tile_'+me.uid); if(t) t.classList.add('novideo'); }
-  const box=$('#callRoot').firstChild;
-  $('#cMin').onclick=e=>{ e.stopPropagation(); box.classList.add('min'); };
-  box.onclick=e=>{
-    if(!box.classList.contains('min')) return;
-    if(e.target.closest('#cEnd')) return;
-    box.classList.remove('min');
-  };
   $('#cEnd').onclick=e=>{ e.stopPropagation(); endCall(); };
   $('#cMic').onclick=e=>{
     const t=call.stream.getAudioTracks()[0]; if(!t) return;
-    t.enabled=!t.enabled; e.currentTarget.classList.toggle('off',!t.enabled);
+    t.enabled=!t.enabled; call.muted=!t.enabled;
+    e.currentTarget.classList.toggle('off',!t.enabled);
   };
+
   $('#cCam').onclick=async e=>{
     let t=call.stream.getVideoTracks()[0];
     if(!t){
@@ -3350,6 +3371,32 @@ function buildCallUI(chat,isCaller){
     const tile=document.getElementById('tile_'+me.uid); if(tile) tile.classList.toggle('novideo',!t.enabled);
   };
 }
+const SPK_ON='<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a4.5 4.5 0 0 1 0 7v-7z"/><path d="M18.5 5.5a8 8 0 0 1 0 13v-2a6 6 0 0 0 0-9v-2z"/></svg>';
+const SPK_OFF='<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>';
+
+/** Переключение между громкой связью и разговорным динамиком. */
+function applySpeaker(){
+  if(!call) return;
+  const on=call.speaker;
+  document.querySelectorAll('#callRoot video, #callRoot audio').forEach(el=>{
+    try{ if(el.setSinkId) el.setSinkId(on?'':'default').catch(()=>{}); }catch(e){}
+  });
+  // На телефонах выбор динамика задаётся типом звука: 'none' уводит
+  // звук в разговорный динамик, 'playback' — в громкую связь
+  const holder=$('#callAudio');
+  if(holder){
+    try{ holder.setAttribute('x-webkit-airplay', on?'allow':'deny'); }catch(e){}
+  }
+  try{
+    if(call.stream){
+      call.stream.getAudioTracks().forEach(t=>{
+        const c=t.getConstraints?t.getConstraints():{};
+        c.echoCancellation=true;
+        t.applyConstraints&&t.applyConstraints(c).catch(()=>{});
+      });
+    }
+  }catch(e){}
+}
 function setStatus(t){ const s=$('#callStatus'); if(s) s.textContent=t; }
 
 /* ---------- свернуть звонок ---------- */
@@ -3359,14 +3406,26 @@ function minimizeCall(){
   document.body.classList.add('mini');
   if(document.getElementById('callMini')) return;
   const bar=el('div','callmini'); bar.id='callMini';
-  bar.innerHTML='<span class="pip"></span><b id="miniName">Звонок</b>'
-    +'<span id="miniTime" style="font-variant-numeric:tabular-nums">0:00</span>'
-    +'<button id="miniBack">Развернуть</button><button class="end" id="miniEnd">✕</button>';
+  bar.innerHTML='<span class="pip"></span>'
+    +'<span id="miniTime">0:00</span>'
+    +'<button class="end" id="miniEnd">✕</button>';
   document.body.appendChild(bar);
-  const nm = call.chat && call.chat.type==='group' ? (call.chat.name||'Группа') : chatTitle(call.chat||{members:[],type:'direct'});
-  bar.querySelector('#miniName').textContent=nm;
-  bar.querySelector('#miniBack').onclick=expandCall;
-  bar.querySelector('#miniEnd').onclick=endCall;
+  bar.onclick=ev=>{ if(!ev.target.closest('#miniEnd')) expandCall(); };
+  bar.querySelector('#miniEnd').onclick=ev=>{ ev.stopPropagation(); endCall(); };
+  // плашку можно перетащить пальцем, если мешает
+  let dx=0, dy=0, moved=false;
+  bar.addEventListener('pointerdown',ev=>{
+    const r=bar.getBoundingClientRect(); dx=ev.clientX-r.left; dy=ev.clientY-r.top; moved=false;
+    bar.setPointerCapture(ev.pointerId);
+  });
+  bar.addEventListener('pointermove',ev=>{
+    if(!bar.hasPointerCapture||!bar.hasPointerCapture(ev.pointerId)) return;
+    if(ev.buttons===0 && ev.pointerType==='mouse') return;
+    moved=true;
+    bar.style.left=Math.max(4,Math.min(innerWidth-bar.offsetWidth-4, ev.clientX-dx))+'px';
+    bar.style.top=Math.max(4,Math.min(innerHeight-bar.offsetHeight-4, ev.clientY-dy))+'px';
+    bar.style.right='auto'; bar.style.bottom='auto';
+  });
   call.miniT=setInterval(()=>{
     const t=document.getElementById('miniTime');
     if(t && call) t.textContent=mmss((Date.now()-call.started)/1000);
@@ -3454,6 +3513,7 @@ function attachStream(uid,stream){
 async function endCall(){
   if(!call) return;
   const c=call; call=null;
+  keepAwake(false);
   try{ c.ch.untrack(); sb.removeChannel(c.ch); }catch(e){}
   c.peers.forEach(p=>{ try{p.pc.close();}catch(e){} });
   c.stream.getTracks().forEach(t=>t.stop());
