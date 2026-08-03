@@ -124,6 +124,15 @@ html[data-theme="dark"]{--wall:url("data:image/svg+xml;utf8,<svg xmlns='http://w
 .chat-top .av{width:40px;height:40px;font-size:15px;background:rgba(255,255,255,.25)!important}
 .chat-top .ttl{flex:1;min-width:0}
 .chat-top .ttl b{display:block;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-top .ttl{flex:1 1 auto;min-width:96px}
+.chat-top .icobtn{width:34px;height:34px;flex:none}
+.chat-top .icobtn svg{width:19px;height:19px}
+.chat-top .av{width:36px;height:36px;font-size:14px}
+@media (max-width:400px){
+  .chat-top{gap:6px;padding-left:6px;padding-right:6px}
+  .chat-top .icobtn{width:30px;height:30px}
+  .chat-top .icobtn svg{width:17px;height:17px}
+}
 .chat-top .ttl span{font-size:12px;opacity:.8}
 .msgs{flex:1;overflow-y:auto;padding:16px 8% 10px;display:flex;flex-direction:column;gap:4px;overscroll-behavior:contain}
 .selbar{display:flex;align-items:center;gap:12px;padding:9px 12px;
@@ -607,6 +616,7 @@ function idbOpen(){
 /* Мост в android-оболочку: она умеет показывать уведомления при закрытом
    приложении, но для расшифровки текста ей нужны те же ключи. */
 const NATIVE = (typeof window!=='undefined' && window.WhereAppNative) ? window.WhereAppNative : null;
+const NCALL  = (typeof window!=='undefined' && window.WhereAppCall) ? window.WhereAppCall : null;
 function nativeCall(fn, ...args){ try{ if(NATIVE && NATIVE[fn]) NATIVE[fn](...args); }catch(e){} }
 
 async function idbPut(k,v){
@@ -1154,10 +1164,22 @@ function renderChatList(){
     const prev=el('div','row-p','…');
     b.append(top,prev); row.append(av,b);
     if(c.updatedAt>(seenAt[c.id]||0) && c.last && c.last.from!==me.uid) row.append(el('div','badge','●'));
-    row.onclick=()=>openChat(c.id);
-    let rowHold=null;
-    row.addEventListener('pointerdown',()=>{ rowHold=setTimeout(()=>chatMenu(c),480); });
-    ['pointerup','pointerleave','pointercancel','pointermove'].forEach(e=>row.addEventListener(e,()=>clearTimeout(rowHold)));
+    let rowHold=null, rx=0, ry=0, rowLong=false;
+    row.addEventListener('pointerdown',ev=>{
+      rx=ev.clientX; ry=ev.clientY; rowLong=false;
+      clearTimeout(rowHold);
+      rowHold=setTimeout(()=>{
+        rowLong=true;
+        if(navigator.vibrate) navigator.vibrate(14);
+        chatMenu(c);
+      },500);
+    });
+    row.addEventListener('pointermove',ev=>{
+      // отменяем только при настоящей прокрутке, а не от дрожания пальца
+      if(Math.abs(ev.clientX-rx)>12 || Math.abs(ev.clientY-ry)>12) clearTimeout(rowHold);
+    });
+    ['pointerup','pointercancel','pointerleave'].forEach(e=>row.addEventListener(e,()=>clearTimeout(rowHold)));
+    row.onclick=()=>{ if(rowLong){ rowLong=false; return; } openChat(c.id); };
     row.addEventListener('contextmenu',ev=>{ ev.preventDefault(); chatMenu(c); });
     box.appendChild(row);
     previewText(c).then(s=>prev.textContent=s);
@@ -3213,6 +3235,9 @@ async function joinRoom(roomId, chat, video, isCaller){
   call={roomId, chatId:chat.id, video, stream, peers:new Map(), known:new Set(), started:Date.now(), chat,
         speaker:video, muted:false};
   keepAwake(true);
+  // В приложении звук ведёт Android: громкость звонка отдельная,
+  // и разговор не прерывается при выключении экрана
+  try{ if(NCALL) NCALL.callStart(!!video); }catch(e){}
   buildCallUI(chat, isCaller);
 
   const ch = sb.channel('room:'+roomId, {config:{presence:{key:me.uid}, broadcast:{self:false}}});
@@ -3347,7 +3372,8 @@ function buildCallUI(chat,isCaller){
     +'<button class="cbtn end" id="cEnd"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="transform:rotate(134deg)"><path d="M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.2.4 2.4.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.4 0 .8-.2 1l-2.3 2.2z"/></svg></button>'
     +'</div></div>';
   $('#cMin').onclick=minimizeCall;
-  $('#cOut').onclick=outputMenu;
+  $('#cOut').onclick=()=>toggleSpeaker();
+  paintSpeaker();
   addTile(me.uid,'Вы',true);
   if(!call.video){ const t=document.getElementById('tile_'+me.uid); if(t) t.classList.add('novideo'); }
   $('#cEnd').onclick=e=>{ e.stopPropagation(); endCall(); };
@@ -3441,6 +3467,37 @@ function closeMini(){
   if(call){ clearInterval(call.miniT); call.miniT=null; }
 }
 
+/* ---------- громкая связь ---------- */
+function paintSpeaker(){
+  const b=$('#cOut'); if(!b || !call) return;
+  b.classList.toggle('off', !call.speaker);
+  b.title = call.speaker ? 'Громкая связь включена' : 'Разговорный динамик';
+  const w=b.querySelector('#spWave');
+  if(w) w.style.opacity = call.speaker ? '1' : '.25';
+}
+async function toggleSpeaker(){
+  if(!call) return;
+  call.speaker=!call.speaker;
+  paintSpeaker();
+  if(NCALL){
+    try{ NCALL.callSpeaker(!!call.speaker); }catch(e){}
+    toast(call.speaker?'Громкая связь':'Разговорный динамик',1600);
+    return;
+  }
+  try{
+    const list=await navigator.mediaDevices.enumerateDevices();
+    const outs=list.filter(d=>d.kind==='audiooutput');
+    const want = call.speaker
+      ? outs.find(d=>/speaker|громк/i.test(d.label))
+      : outs.find(d=>/earpiece|receiver|разговор/i.test(d.label));
+    const id = want ? want.deviceId : 'default';
+    document.querySelectorAll('#callRoot video, #callRoot audio').forEach(el=>{
+      if(el.setSinkId) el.setSinkId(id).catch(()=>{});
+    });
+  }catch(e){}
+  toast(call.speaker?'Громкая связь':'Разговорный динамик',1600);
+}
+
 /* ---------- выбор динамика ---------- */
 async function applyOutput(id){
   if(!call) return;
@@ -3514,6 +3571,7 @@ async function endCall(){
   if(!call) return;
   const c=call; call=null;
   keepAwake(false);
+  try{ if(NCALL) NCALL.callEnd(); }catch(e){}
   try{ c.ch.untrack(); sb.removeChannel(c.ch); }catch(e){}
   c.peers.forEach(p=>{ try{p.pc.close();}catch(e){} });
   c.stream.getTracks().forEach(t=>t.stop());
