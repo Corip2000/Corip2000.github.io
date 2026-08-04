@@ -215,7 +215,14 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
 .bub.pending{opacity:.72}
 .bub img.ph{max-width:100%;border-radius:7px;display:block;cursor:zoom-in;background:#ddd6ee;min-height:60px}
 .bub video.ph{max-width:100%;border-radius:7px;display:block;background:#000}
-.bub audio{width:230px;max-width:100%;height:38px;margin:2px 0}
+.voice{display:flex;align-items:center;gap:9px;min-width:210px;max-width:280px;padding:3px 2px}
+.v-play{width:34px;height:34px;border-radius:50%;background:var(--p);color:#fff;flex:none;
+  display:grid;place-items:center;font-size:13px}
+.v-line{flex:1;height:4px;border-radius:3px;background:rgba(124,58,237,.25);cursor:pointer;position:relative}
+.v-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--p);border-radius:3px}
+.v-time{font-size:11.5px;color:var(--mut);min-width:32px;font-variant-numeric:tabular-nums}
+.v-spd{font-size:11px;font-weight:700;color:var(--p-dark);background:var(--p-soft);
+  border-radius:9px;padding:2px 7px;flex:none}
 .filecard{display:flex;align-items:center;gap:10px;padding:6px 4px;min-width:190px}
 .filecard .fi{width:38px;height:38px;border-radius:9px;background:var(--p);color:#fff;display:grid;place-items:center;flex:none}
 .filecard b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:190px}
@@ -228,6 +235,14 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
 .rb-body b{display:block;font-size:12.5px;color:var(--p-dark)}
 .rb-body span{display:block;font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .replybar button{color:var(--mut);font-size:17px;padding:0 6px;flex:none}
+.vidcard{position:relative;border-radius:8px;overflow:hidden;background:#1a1030;min-height:150px;
+  min-width:200px;max-width:100%;cursor:pointer;display:grid;place-items:center}
+.vidcover{display:block;max-width:100%;max-height:320px;width:auto;height:auto}
+.vidcard:not(.ready) .vidcover{width:220px;height:150px}
+.vidplay{position:absolute;width:54px;height:54px;border-radius:50%;background:rgba(0,0,0,.55);
+  color:#fff;display:grid;place-items:center;font-size:22px;padding-left:4px;pointer-events:none}
+.viddur{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;
+  padding:1px 7px;border-radius:8px;pointer-events:none}
 .album{display:grid;grid-template-columns:1fr 1fr;gap:3px;border-radius:8px;overflow:hidden;margin-bottom:3px}
 .album.one{grid-template-columns:1fr}
 .album-i{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#ddd6ee;cursor:zoom-in}
@@ -239,6 +254,7 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
 .reactbar{position:fixed;z-index:70;display:flex;gap:2px;background:var(--panel);border-radius:26px;
   padding:6px 8px;box-shadow:0 8px 26px rgba(30,0,70,.35)}
 .reactbar button{font-size:24px;padding:4px 6px;line-height:1;transition:transform .12s}
+.reactbar button.more{font-size:20px;color:var(--p-dark);border-left:1px solid var(--line);margin-left:4px;padding-left:10px}
 .reactbar button:active{transform:scale(1.35)}
 .poll{min-width:240px;max-width:340px}
 .poll-q{font-weight:700;font-size:14.8px;margin:2px 0 8px}
@@ -821,7 +837,18 @@ function startApp(){
     return sb.from('profiles').update({last_seen:Date.now(), online:on}).eq('id',me.uid).then(()=>{},()=>{});
   };
   beat(true);
-  setInterval(()=>{ if(!document.hidden) beat(true); }, 20000);
+  setInterval(()=>{ if(!document.hidden) beat(true); }, 12000);
+  // Профиль собеседника обновляем сразу, а не ждём общей перезагрузки чатов
+  sb.channel('presence-feed')
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'profiles'},({new:row})=>{
+      if(!row || !row.id) return;
+      profiles.set(row.id, Object.assign({}, profiles.get(row.id)||{}, row));
+      if(curChat){
+        const c=chats.get(curChat);
+        if(c && c.members.indexOf(row.id)>=0) paintHeader();
+      }
+    }).subscribe();
+  setInterval(()=>{ if(curChat && !document.hidden) paintHeader(); }, 10000);
   document.addEventListener('visibilitychange',()=>{
     beat(!document.hidden);
     if(!document.hidden && curChat) refreshTicks(curChat);
@@ -1382,7 +1409,7 @@ function paintHeader(){
   else{
     const p=profiles.get(c.members.find(u=>u!==me.uid))||{};
     if(S.get('wa_hide_online')==='1'){ $('#topSub').textContent = p.code?('код '+p.code):''; return; }
-    const fresh = p.last_seen && Date.now()-Number(p.last_seen)<60000;
+    const fresh = p.last_seen && Date.now()-Number(p.last_seen)<35000;
     const on = fresh && p.online !== false;
     $('#topSub').textContent = on ? 'в сети' : (p.last_seen ? 'был(а) '+lastSeenText(Number(p.last_seen)) : (p.code?'код '+p.code:''));
   }
@@ -1435,7 +1462,6 @@ function renderMsgs(id){
         if(drag) return;
         if(navigator.vibrate) navigator.vibrate(14);
         reactBar(m, b);
-        selStart(m);
       },420);
     });
     b.addEventListener('pointermove',ev=>{
@@ -1504,12 +1530,69 @@ function renderMsgs(id){
       if(m.text) b.appendChild(el('div','txt',m.text));
     }
     else if(m.kind==='video'){
-      const v=document.createElement('video'); v.className='ph'; v.controls=true; v.preload='metadata'; b.appendChild(v);
-      loadBlob(id,m).then(u=>v.src=u).catch(()=>{});
+      const wrap=el('div','vidcard');
+      const cover=document.createElement('canvas'); cover.className='vidcover';
+      const play=el('div','vidplay','▶');
+      wrap.append(cover, play);
+      if(m.meta && m.meta.dur) wrap.appendChild(el('div','viddur', mmss(m.meta.dur)));
+      b.appendChild(wrap);
+      if(m.text) b.appendChild(el('div','txt',m.text));
+
+      loadBlob(id,m).then(u=>{
+        // первый кадр как обложка: раньше был просто серый прямоугольник
+        const vv=document.createElement('video');
+        vv.preload='metadata'; vv.muted=true; vv.playsInline=true; vv.src=u;
+        vv.onloadeddata=()=>{ try{ vv.currentTime=Math.min(0.5,(vv.duration||1)/3); }catch(e){} };
+        vv.onseeked=()=>{
+          try{
+            const k=Math.min(1, 640/Math.max(vv.videoWidth||1, vv.videoHeight||1));
+            cover.width=Math.max(1,Math.round((vv.videoWidth||320)*k));
+            cover.height=Math.max(1,Math.round((vv.videoHeight||240)*k));
+            cover.getContext('2d').drawImage(vv,0,0,cover.width,cover.height);
+            wrap.classList.add('ready');
+          }catch(e){}
+        };
+        wrap.onclick=ev=>{ ev.stopPropagation(); if(!selMode) videoBox(u); };
+      }).catch(()=>{ play.textContent='!'; });
     }
     else if(m.kind==='audio'){
-      const a=document.createElement('audio'); a.controls=true; a.preload='metadata'; b.appendChild(a);
-      loadBlob(id,m).then(u=>a.src=u).catch(()=>{});
+      const box=el('div','voice');
+      const btn=el('button','v-play','▶');
+      const line=el('div','v-line'); const fill=el('div','v-fill'); line.appendChild(fill);
+      const time=el('span','v-time', m.meta&&m.meta.dur?mmss(m.meta.dur):'0:00');
+      const spd=el('button','v-spd','1×');
+      box.append(btn,line,time,spd);
+      b.appendChild(box);
+
+      const a=document.createElement('audio'); a.preload='metadata';
+      let rate=1;
+      loadBlob(id,m).then(u=>a.src=u).catch(()=>{ btn.textContent='!'; });
+      btn.onclick=ev=>{
+        ev.stopPropagation();
+        if(a.paused){
+          document.querySelectorAll('audio').forEach(o=>{ if(o!==a) o.pause(); });
+          a.play().catch(()=>{});
+        } else a.pause();
+      };
+      spd.onclick=ev=>{
+        ev.stopPropagation();
+        rate = rate===1 ? 1.5 : rate===1.5 ? 2 : 1;
+        a.playbackRate=rate;
+        spd.textContent=(rate===1?'1':rate===1.5?'1.5':'2')+'×';
+      };
+      line.onclick=ev=>{
+        ev.stopPropagation();
+        const r=line.getBoundingClientRect();
+        if(a.duration) a.currentTime=((ev.clientX-r.left)/r.width)*a.duration;
+      };
+      a.onplay=()=>{ btn.textContent='❚❚'; };
+      a.onpause=()=>{ btn.textContent='▶'; };
+      a.onended=()=>{ btn.textContent='▶'; fill.style.width='0%'; time.textContent=m.meta&&m.meta.dur?mmss(m.meta.dur):'0:00'; };
+      a.ontimeupdate=()=>{
+        if(!a.duration) return;
+        fill.style.width=(a.currentTime/a.duration*100)+'%';
+        time.textContent=mmss(a.currentTime);
+      };
     }
     else{
       const card=el('div','filecard');
@@ -2444,12 +2527,9 @@ function drawPhotoGrid(){
     mark.onclick=ev=>{ ev.stopPropagation(); it.on=!it.on; drawPhotoGrid(); };
     cell.appendChild(mark);
     cell.onclick=()=>{
-      if(it.video){
-        const u=URL.createObjectURL(new Blob([it.bytes],{type:it.mime}));
-        videoBox(u);
-      }else{
-        lightbox(it.url, it.name||'photo.jpg');
-      }
+      // открываем сам файл, а не мелкую миниатюру
+      const u=URL.createObjectURL(new Blob([it.bytes],{type:it.mime||'image/jpeg'}));
+      if(it.video) videoBox(u); else lightbox(u, it.name||'photo.jpg');
     };
     g.appendChild(cell);
   });
@@ -2528,6 +2608,7 @@ function renderReacts(b, m){
   b.appendChild(box);
 }
 function reactBar(m, node){
+  const startSel=()=>{ if(!selMode) selStart(m); };
   const old=document.querySelector('.reactbar'); if(old) old.remove();
   const bar=el('div','reactbar');
   REACTIONS.forEach(e=>{
@@ -2535,6 +2616,10 @@ function reactBar(m, node){
     b.onclick=ev=>{ ev.stopPropagation(); bar.remove(); toggleReact(m,e); };
     bar.appendChild(b);
   });
+  const more=el('button','more','⋯');
+  more.title='Выделить и действия';
+  more.onclick=ev=>{ ev.stopPropagation(); bar.remove(); startSel(); };
+  bar.appendChild(more);
   document.body.appendChild(bar);
   const r=node.getBoundingClientRect();
   const w=bar.offsetWidth||250;
