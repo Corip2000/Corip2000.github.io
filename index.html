@@ -1622,8 +1622,21 @@ function renderMsgs(id){
       b.appendChild(wrap);
       if(m.text) b.appendChild(el('div','txt',m.text));
 
+      // Обложка, сохранённая при отправке: показывается сразу, без загрузки видео
+      if(m.meta && m.meta.thumb){
+        const im=new Image();
+        im.onload=()=>{
+          cover.width=im.naturalWidth; cover.height=im.naturalHeight;
+          cover.getContext('2d').drawImage(im,0,0);
+          wrap.classList.add('ready');
+        };
+        im.src=m.meta.thumb;
+      }
+
       loadBlob(id,m).then(u=>{
-        // первый кадр как обложка: раньше был просто серый прямоугольник
+        wrap.onclick=ev=>{ ev.stopPropagation(); if(!selMode) videoBox(u, (m.meta&&m.meta.name)||'video.mp4'); };
+        if(m.meta && m.meta.thumb) return;
+        // обложки нет (старое сообщение) — вытаскиваем кадр из самого файла
         const vv=document.createElement('video');
         vv.preload='metadata'; vv.muted=true; vv.playsInline=true; vv.src=u;
         vv.onloadeddata=()=>{ try{ vv.currentTime=Math.min(0.5,(vv.duration||1)/3); }catch(e){} };
@@ -1636,7 +1649,6 @@ function renderMsgs(id){
             wrap.classList.add('ready');
           }catch(e){}
         };
-        wrap.onclick=ev=>{ ev.stopPropagation(); if(!selMode) videoBox(u, (m.meta&&m.meta.name)||'video.mp4'); };
       }).catch(()=>{ play.textContent='!'; });
     }
     else if(m.kind==='audio'){
@@ -2149,15 +2161,22 @@ async function resync(why){
 
 /* ---------- исчезающие сообщения ---------- */
 setInterval(async ()=>{
-  if(!curChat) return;
-  const cache=msgCache.get(curChat); if(!cache) return;
   const now=Date.now();
-  const dead=[...cache.values()].filter(m=>m.expires && m.expires<=now).map(m=>m.id);
-  if(!dead.length) return;
-  dead.forEach(id=>cache.delete(id));
-  renderMsgs(curChat);
-  try{ await sb.from('messages').delete().in('id',dead); }catch(e){}
-}, 5000);
+  const dead=[];
+  msgCache.forEach(cache=>{
+    cache.forEach(m=>{ if(m.expires && m.expires<=now) dead.push(m.id); });
+  });
+  if(dead.length){
+    dead.forEach(id=>msgCache.forEach(cache=>cache.delete(id)));
+    if(curChat) renderMsgs(curChat);
+    try{ await sb.from('messages').delete().in('id',dead); }catch(e){}
+  }
+  // подчищаем и то, что не открывали: сообщения могли протухнуть на сервере
+  const ids=[...chats.values()].map(c=>c.id);
+  if(ids.length){
+    try{ await sb.from('messages').delete().in('chat_id',ids).lt('expires_at',now).not('expires_at','is',null); }catch(e){}
+  }
+}, 15000);
 
 function ttlText(sec){
   if(!sec) return 'выключены';
@@ -2403,7 +2422,10 @@ async function flushOutbox(){
     try{
       const key=await chatKey(c);
       const enc=await encText(key,o.text);
-      const {error}=await sb.from('messages').insert({id:o.id, chat_id:c.id, from_uid:me.uid, ts:o.ts, kind:'text', ct:enc.ct, iv:enc.iv});
+      const orow={id:o.id, chat_id:c.id, from_uid:me.uid, ts:o.ts, kind:'text', ct:enc.ct, iv:enc.iv};
+      const ttlO=Number(c.ttl||0);
+      if(ttlO>0) orow.expires_at=o.ts+ttlO*1000;
+      const {error}=await sb.from('messages').insert(orow);
       if(error) throw error;
       await sb.from('chats').update({updated_at:o.ts, last:{from:me.uid,kind:'text',ts:o.ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
       bumpChat(c.id, o.ts, {from:me.uid,kind:'text',ts:o.ts,ct:enc.ct,iv:enc.iv});
@@ -2430,6 +2452,15 @@ function bumpChat(chatId, ts, last){
 }
 
 /* ---------- отправка ---------- */
+/** Актуальный срок жизни сообщений в чате. */
+async function freshTtl(c){
+  try{
+    const {data}=await sb.from('chats').select('ttl').eq('id',c.id).maybeSingle();
+    if(data){ c.ttl=Number(data.ttl)||0; return c.ttl; }
+  }catch(e){}
+  return Number(c.ttl||0);
+}
+
 async function sendAlbum(list, captionText, rep, toChat){
   const c=chats.get(toChat||curChat); if(!c) return;
   const key=await chatKey(c);
@@ -2445,6 +2476,8 @@ async function sendAlbum(list, captionText, rep, toChat){
   }
   const row={id:rid(22), chat_id:c.id, from_uid:me.uid, ts, kind:'album',
              ct:enc.ct, iv:enc.iv, blob:{list:blobs}, meta:{items:metas}};
+  const ttlA=await freshTtl(c);
+  if(ttlA>0) row.expires_at = ts + ttlA*1000;
   if(rep) row.reply={id:rep.id, from:rep.from, kind:rep.kind, ct:rep.ct, iv:rep.iv};
   const {error}=await sb.from('messages').insert(row);
   if(error) throw error;
@@ -2472,7 +2505,8 @@ async function sendMsg(kind, payload, toChat){
   const enc=await encText(key, payload.text||'');
   const row={id:rid(22), chat_id:c.id, from_uid:me.uid, ts, kind, ct:enc.ct, iv:enc.iv};
   if(payload.reply) row.reply={id:payload.reply.id, from:payload.reply.from, kind:payload.reply.kind, ct:payload.reply.ct, iv:payload.reply.iv};
-  const ttl=Number(c.ttl||0);
+  // Срок читаем с сервера: собеседник мог включить исчезающие сообщения только что
+  const ttl=await freshTtl(c);
   if(ttl>0) row.expires_at = ts + ttl*1000;
   if(payload.bytes){
     if(payload.bytes.length>CHUNK_SIZE) toast('Отправляем '+sizeStr(payload.bytes.length)+', это займёт время…',4000);
@@ -2636,6 +2670,15 @@ $('#camPick').onchange=async e=>{
 };
 
 let photoState=null;
+/** Кадр-обложка из готовых байтов видео. */
+async function makeThumb(bytes, mime){
+  try{
+    const blob=new Blob([bytes],{type:mime||'video/mp4'});
+    const r=await videoThumb(blob);
+    return r||{};
+  }catch(e){ return {}; }
+}
+
 function videoThumb(file){
   return new Promise(ok=>{
     try{
@@ -2726,8 +2769,9 @@ window.__nativePhotos = async function(list, captionText){
         used=true;
       }else if(pics.length>1){ await sendAlbum(pics, captionText||'', rep); used=true; }
       for(const v of vids){
+        const th=await makeThumb(v.bytes, v.mime);
         await sendMsg('video',{bytes:v.bytes, text:used?'':(captionText||''), reply:used?null:rep,
-          meta:{name:v.name, size:v.bytes.length, mime:v.mime}});
+          meta:{name:v.name, size:v.bytes.length, mime:v.mime, thumb:th.thumb||'', dur:th.dur||0}});
         used=true;
       }
       stickBottom=true; scrollBottom(); return;
@@ -2783,7 +2827,7 @@ async function openPhotoPicker(files){
       }
       for(const v of vids){
         await sendMsg('video',{bytes:v.bytes, text:capUsed?'':cap, reply:capUsed?null:rep,
-          meta:{name:v.name, size:v.bytes.length, mime:v.mime, dur:v.dur}});
+          meta:{name:v.name, size:v.bytes.length, mime:v.mime, dur:v.dur, thumb:v.url||''}});
         capUsed=true;
       }
     }catch(err){ setProg(0); toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),9000); }
@@ -2841,7 +2885,12 @@ $('#filePick').onchange=async e=>{
     const bytes=new Uint8Array(await f.arrayBuffer());
     const kind = f.type.indexOf('video/')===0 ? 'video' : f.type.indexOf('audio/')===0 ? 'audio' : 'file';
     const rep=replyTo; clearReply();
-    await sendMsg(kind,{bytes,reply:rep,meta:{name:f.name,size:f.size,mime:f.type||'application/octet-stream'}});
+    const meta={name:f.name,size:f.size,mime:f.type||'application/octet-stream'};
+    if(kind==='video'){
+      const th=await videoThumb(f);
+      if(th){ meta.thumb=th.thumb; meta.dur=th.dur; }
+    }
+    await sendMsg(kind,{bytes,reply:rep,meta});
   }catch(err){ setProg(0); toast('Ошибка: '+err.message); }
 };
 async function compress(file, maxDim, target){
