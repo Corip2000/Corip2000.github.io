@@ -288,6 +288,11 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
 .mask{position:fixed;inset:0;background:rgba(30,10,60,.5);display:flex;align-items:center;justify-content:center;padding:18px;z-index:40;backdrop-filter:blur(2px)}
 .modal{background:var(--panel);border-radius:18px;width:100%;max-width:420px;padding:22px;
   max-height:calc(100dvh - 48px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.storbox{border:1.5px solid var(--line);border-radius:12px;padding:12px;background:var(--field)}
+.storbar{height:8px;border-radius:5px;background:var(--p-soft);overflow:hidden}
+.storbar>div{height:100%;width:0;background:var(--p);border-radius:5px;transition:width .4s}
+.storbar.warn>div{background:#E8A33D}
+.storbar.full>div{background:var(--bad)}
 .picklist{max-height:min(52vh,420px);overflow-y:auto;-webkit-overflow-scrolling:touch;
   margin:0 -6px;padding:0 6px}
 .modal h3{margin:0 0 4px;font-size:19px}
@@ -534,9 +539,10 @@ const SUPA_KEY = 'sb_publishable_0FbeQ-Y9mtRqlKHmKRXrHw_RjI-EHa1';
 const INVITE_CODE = 'WhatsApp777300>WhereApp$';   // без него регистрация не проходит
 // Файл приложения лежит рядом с сайтом. Залейте WhereApp.apk в тот же репозиторий.
 const APK_URL = 'WhereApp.apk';
-const MAX_FILE   = 20 * 1024 * 1024;    // 20 МБ на файл
+const MAX_FILE   = 100 * 1024 * 1024;   // потолок на файл
+const CHUNK_SIZE = 8 * 1024 * 1024;     // кусок, которым файл уходит в хранилище
 const IMG_TARGET = 1.5 * 1024 * 1024;   // цель сжатия фото
-const LIMIT_MSG  = 'Извините, но сайт имеет бесплатную базу данных, сожмите файл (лимит 20 МБ). Зато звонить можно!!';
+const LIMIT_MSG  = 'Извините, но сайт имеет бесплатную базу данных, сожмите файл (лимит 100 МБ). Зато звонить можно!!';
 // Ретрансляторы для звонков.
 // Свои данные вписываются в METERED_KEY: зарегистрируйтесь на metered.ca,
 // раздел Open Relay, и скопируйте оттуда ключ API. Пока ключа нет,
@@ -1628,7 +1634,7 @@ function renderMsgs(id){
             wrap.classList.add('ready');
           }catch(e){}
         };
-        wrap.onclick=ev=>{ ev.stopPropagation(); if(!selMode) videoBox(u); };
+        wrap.onclick=ev=>{ ev.stopPropagation(); if(!selMode) videoBox(u, (m.meta&&m.meta.name)||'video.mp4'); };
       }).catch(()=>{ play.textContent='!'; });
     }
     else if(m.kind==='audio'){
@@ -1977,6 +1983,23 @@ async function saveFile(url, name){
   if(NATIVE && NATIVE.saveToGallery){
     try{
       const blob=await (await fetch(url)).blob();
+      const mime=blob.type||'application/octet-stream';
+
+      // Крупные файлы (видео) передаём частями: одной строкой WebView их не пропускает
+      if(NATIVE.saveStart && blob.size>600*1024){
+        toast('Сохраняем '+sizeStr(blob.size)+'…',2500);
+        const id='dl_'+rid(10);
+        NATIVE.saveStart(id);
+        const buf=new Uint8Array(await blob.arrayBuffer());
+        const STEP=180*1024;                       // ~240 КБ текста на кусок
+        for(let i=0;i<buf.length;i+=STEP){
+          NATIVE.savePart(id, b64(buf.subarray(i, Math.min(i+STEP, buf.length))));
+          await new Promise(r=>setTimeout(r,0));   // не блокируем интерфейс
+        }
+        NATIVE.saveFinish(id, name, mime);
+        return;
+      }
+
       const dataUrl=await new Promise(ok=>{ const r=new FileReader(); r.onload=()=>ok(r.result); r.readAsDataURL(blob); });
       NATIVE.saveToGallery(dataUrl, name);
       return;
@@ -1986,14 +2009,20 @@ async function saveFile(url, name){
   document.body.appendChild(a); a.click(); a.remove();
   toast('Сохраняем…',1600);
 }
-function videoBox(u){
+function videoBox(u, name){
   const w=el('div','lightbox');
   const v=document.createElement('video');
   v.src=u; v.controls=true; v.autoplay=true; v.playsInline=true;
   v.style.maxWidth='100%'; v.style.maxHeight='100%'; v.style.borderRadius='8px';
   w.appendChild(v);
   const bar=el('div','lb-bar');
-  const b=el('button'); b.innerHTML='<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  const SS='<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+  const dl=el('button');
+  dl.title='Скачать';
+  dl.innerHTML=SS+'<path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>';
+  dl.onclick=e=>{ e.stopPropagation(); saveFile(u, name||'video.mp4'); };
+  bar.appendChild(dl);
+  const b=el('button'); b.innerHTML=SS+'<path d="M6 6l12 12M18 6L6 18"/></svg>';
   b.onclick=e=>{ e.stopPropagation(); w.remove(); };
   bar.appendChild(b); w.appendChild(bar);
   w.onclick=e=>{ if(e.target===w) w.remove(); };
@@ -2049,6 +2078,64 @@ function lightbox(u, name){
   document.body.appendChild(w);
 }
 
+/* ---------- место в хранилище ---------- */
+const STORAGE_LIMIT = 1024*1024*1024;      // гигабайт на бесплатном тарифе
+
+/** Считает вес вложений во всех чатах, где я состою. */
+async function storageUsage(){
+  const ids=[...chats.values()].map(c=>c.id);
+  if(!ids.length) return {bytes:0, items:[]};
+  const {data,error}=await sb.from('messages')
+    .select('id,chat_id,ts,kind,meta,blob')
+    .in('chat_id',ids)
+    .not('blob','is',null)
+    .order('ts',{ascending:true})
+    .limit(2000);
+  if(error) throw error;
+  let bytes=0;
+  const items=[];
+  (data||[]).forEach(r=>{
+    let size=0;
+    if(r.meta && r.meta.size) size=Number(r.meta.size)||0;
+    else if(r.meta && r.meta.items) size=(r.meta.items||[]).reduce((s,x)=>s+(Number(x.size)||0),0);
+    else if(r.blob && r.blob.size) size=Number(r.blob.size)||0;
+    bytes+=size;
+    items.push({id:r.id, chat:r.chat_id, ts:Number(r.ts), kind:r.kind, size:size, blob:r.blob});
+  });
+  return {bytes, items};
+}
+
+/** Собирает пути файлов сообщения — и одиночных, и разбитых на части. */
+function blobPaths(m){
+  const out=[];
+  const b=m.blob;
+  if(!b) return out;
+  if(b.path) out.push(b.path);
+  if(b.parts) b.parts.forEach(p=>{ if(p.path) out.push(p.path); });
+  if(b.list) b.list.forEach(p=>{ if(p.path) out.push(p.path); });
+  return out;
+}
+
+/** Удаляет вложения старше указанного срока. Тексты сообщений остаются. */
+async function cleanOld(days, items){
+  const edge=Date.now()-days*86400000;
+  const old=items.filter(x=>x.ts<edge);
+  if(!old.length) return {n:0, bytes:0};
+  const paths=[];
+  old.forEach(x=>blobPaths(x).forEach(p=>paths.push(p)));
+  const freed=old.reduce((s,x)=>s+x.size,0);
+  for(let i=0;i<paths.length;i+=80){
+    const {error}=await sb.storage.from('media').remove(paths.slice(i,i+80));
+    if(error) throw error;
+  }
+  // сами сообщения убираем, иначе останутся битые вложения
+  const ids=old.map(x=>x.id);
+  for(let i=0;i<ids.length;i+=100){
+    await sb.from('messages').delete().in('id',ids.slice(i,i+100));
+  }
+  return {n:old.length, bytes:freed};
+}
+
 /* ---------- восстановление после фона ----------
    На iOS вкладка засыпает, вебсокеты обрываются без уведомления,
    и сообщения перестают приходить до перезагрузки страницы.
@@ -2096,6 +2183,39 @@ function ttlText(sec){
   if(sec<86400) return (sec/3600)+' ч';
   return (sec/86400)+' дн';
 }
+/** Выбор срока, старше которого вложения удаляются. */
+function cleanMenu(items, after){
+  const opts=[[7,'старше недели'],[30,'старше месяца'],[90,'старше 3 месяцев'],[180,'старше полугода'],[0,'все вложения']];
+  const wrap=el('div','sheet'); wrap.style.zIndex='95';
+  const inner=el('div','sheet-in');
+  inner.appendChild(el('div','peek','Файлы удалятся у всех участников. Текст сообщений останется.'));
+  opts.forEach(([days,label])=>{
+    const edge=days?Date.now()-days*86400000:Date.now();
+    const hit=items.filter(x=>x.ts<edge);
+    const vol=hit.reduce((s,x)=>s+x.size,0);
+    const b=el('button',null,'🗑  Удалить '+label+' · '+hit.length+' шт, '+sizeStr(vol));
+    if(!hit.length) b.style.opacity='.45';
+    b.onclick=async()=>{
+      if(!hit.length) return;
+      wrap.remove();
+      toast('Удаляем '+hit.length+' вложений…',3000);
+      try{
+        const r=await cleanOld(days||0, items);
+        toast('Освобождено '+sizeStr(r.bytes)+' · удалено '+r.n,4000);
+        if(curChat){ msgCache.delete(curChat); const k=curChat; curChat=null; openChat(k); }
+        if(after) after();
+      }catch(e){ toast('Ошибка очистки: '+(e.message||e),7000); }
+    };
+    inner.appendChild(b);
+  });
+  const cancel=el('button','cancel','Отмена');
+  cancel.onclick=()=>wrap.remove();
+  inner.appendChild(cancel);
+  wrap.appendChild(inner);
+  wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
+  document.body.appendChild(wrap);
+}
+
 function ttlMenu(c, close){
   const opts=[[0,'Выключить'],[60,'1 минута'],[3600,'1 час'],[43200,'12 часов'],
               [86400,'1 день'],[604800,'1 неделя'],[2592000,'30 дней']];
@@ -2177,15 +2297,46 @@ function hiText(node, text){
 
 /* ---------- файлы через хранилище ---------- */
 async function putBlob(chatId,key,bytes,mime){
-  const {buf,iv}=await encRaw(key,bytes);
-  const path=chatId+'/'+rid(18);
-  const {error}=await sb.storage.from('media').upload(path, new Blob([buf],{type:'application/octet-stream'}),
-    {contentType:'application/octet-stream', upsert:false});
-  if(error) throw error;
-  return {path, iv, mime};
+  // Небольшой файл — одним куском, как раньше
+  if(bytes.length<=CHUNK_SIZE){
+    const {buf,iv}=await encRaw(key,bytes);
+    const path=chatId+'/'+rid(18);
+    const {error}=await sb.storage.from('media').upload(path, new Blob([buf],{type:'application/octet-stream'}),
+      {contentType:'application/octet-stream', upsert:false});
+    if(error) throw error;
+    return {path, iv, mime};
+  }
+
+  // Крупный режем на части: целиком хранилище его не принимает
+  const base=chatId+'/'+rid(18);
+  const total=Math.ceil(bytes.length/CHUNK_SIZE);
+  const parts=[];
+  for(let i=0;i<total;i++){
+    const slice=bytes.subarray(i*CHUNK_SIZE, Math.min((i+1)*CHUNK_SIZE, bytes.length));
+    const {buf,iv}=await encRaw(key,slice);
+    const path=base+'_'+i;
+    const {error}=await sb.storage.from('media').upload(path, new Blob([buf],{type:'application/octet-stream'}),
+      {contentType:'application/octet-stream', upsert:false});
+    if(error) throw error;
+    parts.push({path, iv});
+    setProg(0.15 + 0.7*(i+1)/total);
+  }
+  return {parts, mime, size:bytes.length};
 }
 async function blobBytes(chatId,m){
   const key=await chatKey(chats.get(chatId));
+  if(m.blob && m.blob.parts){
+    const pieces=[];
+    for(const p of m.blob.parts){
+      const {data,error}=await sb.storage.from('media').download(p.path);
+      if(error) throw error;
+      pieces.push(new Uint8Array(await decRaw(key, await data.arrayBuffer(), p.iv)));
+    }
+    const total=pieces.reduce((s,x)=>s+x.length,0);
+    const out=new Uint8Array(total); let off=0;
+    pieces.forEach(x=>{ out.set(x,off); off+=x.length; });
+    return out;
+  }
   const {data,error}=await sb.storage.from('media').download(m.blob.path);
   if(error) throw error;
   return new Uint8Array(await decRaw(key, await data.arrayBuffer(), m.blob.iv));
@@ -2206,10 +2357,25 @@ async function loadBlob(chatId,m){
   const ck=chatId+'/'+m.id;
   if(blobUrls.has(ck)) return blobUrls.get(ck);
   const key=await chatKey(chats.get(chatId));
+  const type=(m.meta&&m.meta.mime)||'application/octet-stream';
+
+  // Файл, разбитый на части: собираем обратно
+  if(m.blob && m.blob.parts){
+    const pieces=[];
+    for(let i=0;i<m.blob.parts.length;i++){
+      const p=m.blob.parts[i];
+      const {data,error}=await sb.storage.from('media').download(p.path);
+      if(error) throw error;
+      pieces.push(await decRaw(key, await data.arrayBuffer(), p.iv));
+    }
+    const url=URL.createObjectURL(new Blob(pieces,{type}));
+    blobUrls.set(ck,url); return url;
+  }
+
   const {data,error}=await sb.storage.from('media').download(m.blob.path);
   if(error) throw error;
   const plain=await decRaw(key, await data.arrayBuffer(), m.blob.iv);
-  const url=URL.createObjectURL(new Blob([plain],{type:(m.meta&&m.meta.mime)||'application/octet-stream'}));
+  const url=URL.createObjectURL(new Blob([plain],{type}));
   blobUrls.set(ck,url); return url;
 }
 
@@ -2300,6 +2466,7 @@ async function sendMsg(kind, payload, toChat){
   const ttl=Number(c.ttl||0);
   if(ttl>0) row.expires_at = ts + ttl*1000;
   if(payload.bytes){
+    if(payload.bytes.length>CHUNK_SIZE) toast('Отправляем '+sizeStr(payload.bytes.length)+', это займёт время…',4000);
     setProg(.15);
     row.blob=await putBlob(c.id,key,payload.bytes,payload.meta&&payload.meta.mime);
     row.meta=payload.meta||{};
@@ -2496,7 +2663,7 @@ async function prepPhotos(files){
     // видео не жмём: отправляем как есть, если помещается
     if(/^video\//.test(f.type||'') || /\.(mp4|mov|m4v|webm|3gp|mkv)$/i.test(f.name||'')){
       try{
-        if(f.size>MAX_FILE){ toast('Видео больше 20 МБ, пропустил.',3500); continue; }
+        if(f.size>MAX_FILE){ toast('Видео больше '+sizeStr(MAX_FILE)+', пропустил.',3500); continue; }
         const bytes=new Uint8Array(await f.arrayBuffer());
         const meta=await videoThumb(f);
         out.push({bytes, mime:f.type||'video/mp4', name:f.name||'video.mp4', video:true,
@@ -3135,6 +3302,11 @@ $('#btnSettings').onclick=()=>{
     +'<pre id="diagOut" class="hidden" style="white-space:pre-wrap;font-size:11.5px;background:#F6F3FC;border-radius:10px;padding:12px;margin-top:10px;line-height:1.6"></pre>'
     +'<label class="pick" style="margin-top:10px"><input type="checkbox" id="hideOnline">'
     +'<span style="flex:1">Скрывать, что я в сети<div style="font-size:12.5px;color:var(--mut)">Вы тоже перестанете видеть чужой статус</div></span></label>'
+    +'<label class="field" style="margin-top:14px"><b>Место для вложений</b>'
+    +'<div class="storbox"><div class="storbar"><div id="storFill"></div></div>'
+    +'<div id="storText" style="font-size:13px;color:var(--mut);margin-top:6px">Считаем…</div>'
+    +'<button class="btn ghost" id="storClean" style="margin-top:10px;display:none">Удалить старые файлы</button>'
+    +'</div></label>'
     +'<label class="field" style="margin-top:14px"><b>Оформление</b>'
     +'<select class="inp" id="themeSel">'
     +'<option value="auto">Как в системе</option>'
@@ -3174,6 +3346,32 @@ $('#btnSettings').onclick=()=>{
       if(curChat) paintHeader();
     };
   }
+  // место в хранилище
+  (async()=>{
+    const fill=m.querySelector('#storFill'), txt=m.querySelector('#storText'),
+          btn=m.querySelector('#storClean'), bar=m.querySelector('.storbar');
+    if(!fill) return;
+    try{
+      const {bytes, items}=await storageUsage();
+      const pct=Math.min(100, bytes/STORAGE_LIMIT*100);
+      fill.style.width=Math.max(1,pct)+'%';
+      bar.classList.toggle('warn', pct>=70 && pct<90);
+      bar.classList.toggle('full', pct>=90);
+      txt.innerHTML='Занято <b>'+sizeStr(bytes)+'</b> из 1 ГБ · вложений: '+items.length
+        + (pct>=90 ? '<br><span style="color:var(--bad)">Место почти кончилось — новые файлы могут не отправиться.</span>'
+          : pct>=70 ? '<br><span style="color:#B57516">Больше двух третей занято.</span>' : '');
+      if(items.length){
+        btn.style.display='flex';
+        btn.onclick=()=>cleanMenu(items, async()=>{
+          const r=await storageUsage();
+          const p2=Math.min(100, r.bytes/STORAGE_LIMIT*100);
+          fill.style.width=Math.max(1,p2)+'%';
+          txt.innerHTML='Занято <b>'+sizeStr(r.bytes)+'</b> из 1 ГБ · вложений: '+r.items.length;
+        });
+      }
+    }catch(e){ txt.textContent='Не удалось посчитать: '+(e.message||e); }
+  })();
+
   const ts=m.querySelector('#themeSel');
   if(ts){
     ts.value=S.get('wa_theme')||'auto';
