@@ -286,7 +286,10 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
 .prog{position:absolute;left:0;right:0;top:-3px;height:3px;background:var(--p);width:0;transition:width .2s}
 
 .mask{position:fixed;inset:0;background:rgba(30,10,60,.5);display:flex;align-items:center;justify-content:center;padding:18px;z-index:40;backdrop-filter:blur(2px)}
-.modal{background:var(--panel);border-radius:18px;width:100%;max-width:420px;padding:22px;max-height:88vh;overflow-y:auto}
+.modal{background:var(--panel);border-radius:18px;width:100%;max-width:420px;padding:22px;
+  max-height:calc(100dvh - 48px);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.picklist{max-height:min(52vh,420px);overflow-y:auto;-webkit-overflow-scrolling:touch;
+  margin:0 -6px;padding:0 6px}
 .modal h3{margin:0 0 4px;font-size:19px}
 .modal p.sub{margin:0 0 18px;color:var(--mut);font-size:13.5px}
 .pick{display:flex;align-items:center;gap:10px;padding:9px 6px;border-radius:10px;cursor:pointer}
@@ -1927,7 +1930,18 @@ async function shareMsg(m, many){
     +'<span class="av sav" data-id="'+c.id+'" style="width:36px;height:36px;font-size:13px;background:hsl('+hue(c.id)+' 55% 52%)"></span>'
     +'<b style="font-weight:600;flex:1">'+esc(chatTitle(c))+'</b></div>').join('');
   const {m:box,close}=modal('<h3>Переслать'+(items.length>1?' ('+items.length+')':'')+'</h3>'
-    +'<p class="sub">Выберите, кому отправить</p>'+rows);
+    +'<p class="sub">Выберите, кому отправить · всего чатов: '+list.length+'</p>'
+    +'<input class="inp" id="shrFind" placeholder="Поиск чата" style="margin-bottom:10px">'
+    +'<div class="picklist" id="shrList">'+rows+'</div>');
+  const sf=box.querySelector('#shrFind');
+  if(sf) sf.oninput=()=>{
+    const q=sf.value.trim().toLowerCase();
+    box.querySelectorAll('.shr').forEach(row=>{
+      const c=chats.get(row.dataset.id);
+      const ok=!q || chatTitle(c).toLowerCase().indexOf(q)>=0;
+      row.style.display= ok ? '' : 'none';
+    });
+  };
   box.querySelectorAll('.sav').forEach(n=>{
     const c=chats.get(n.dataset.id);
     if(c.type==='group') paintAv(n,null,'👥',c.avatar);
@@ -2083,8 +2097,11 @@ function ttlText(sec){
   return (sec/86400)+' дн';
 }
 function ttlMenu(c, close){
-  const opts=[[0,'Выключить'],[60,'1 минута'],[3600,'1 час'],[86400,'1 день'],[604800,'1 неделя']];
-  const wrap=el('div','sheet'); const inner=el('div','sheet-in');
+  const opts=[[0,'Выключить'],[60,'1 минута'],[3600,'1 час'],[43200,'12 часов'],
+              [86400,'1 день'],[604800,'1 неделя'],[2592000,'30 дней']];
+  const wrap=el('div','sheet');
+  wrap.style.zIndex='90';        // окно чата уже открыто, панель должна быть выше
+  const inner=el('div','sheet-in');
   inner.appendChild(el('div','peek','Сообщения будут удаляться у всех по истечении срока'));
   opts.forEach(([sec,label])=>{
     const b=el('button',null,(Number(c.ttl||0)===sec?'✓  ':'  ')+label);
@@ -2098,7 +2115,9 @@ function ttlMenu(c, close){
     };
     inner.appendChild(b);
   });
-  inner.appendChild(el('button','cancel','Отмена')).onclick=()=>wrap.remove();
+  const cancel=el('button','cancel','Отмена');
+  cancel.onclick=()=>wrap.remove();
+  inner.appendChild(cancel);
   wrap.appendChild(inner);
   wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
   document.body.appendChild(wrap);
@@ -2886,9 +2905,20 @@ $('#btnNewGroup').onclick=()=>{
   if(!contacts.length) return toast('Сначала добавьте хотя бы один контакт по коду.');
   const rows=contacts.map(u=>'<label class="pick"><input type="checkbox" value="'+u+'"><span class="av" style="width:34px;height:34px;font-size:13px;background:hsl('+hue(u)+' 55% 52%)">'
     +esc(initials((profiles.get(u)||{}).name))+'</span> '+esc((profiles.get(u)||{}).name||'Контакт')+'</label>').join('');
-  const {m,close}=modal('<h3>Новая группа</h3><p class="sub">Название и участники. Ключ группы шифруется отдельно для каждого.</p>'
-    +'<input class="inp" id="gname" maxlength="40" placeholder="Название группы"><div style="height:12px"></div>'+rows
+  const {m,close}=modal('<h3>Новая группа</h3><p class="sub">Название и участники · контактов: '+contacts.length+'</p>'
+    +'<input class="inp" id="gname" maxlength="40" placeholder="Название группы"><div style="height:10px"></div>'
+    +'<input class="inp" id="gFind" placeholder="Поиск контакта"><div style="height:10px"></div>'
+    +'<div class="picklist" id="gList">'+rows+'</div>'
     +'<div style="height:14px"></div><button class="btn" id="gGo">Создать группу</button>');
+  const gf=m.querySelector('#gFind');
+  gf.oninput=()=>{
+    const q=gf.value.trim().toLowerCase();
+    m.querySelectorAll('#gList .pick').forEach(row=>{
+      const u=row.querySelector('input').value;
+      const nm=((profiles.get(u)||{}).name||'').toLowerCase();
+      row.style.display = (!q || nm.indexOf(q)>=0) ? '' : 'none';
+    });
+  };
   m.querySelector('#gGo').onclick=async()=>{
     const name=m.querySelector('#gname').value.trim();
     const picked=[...m.querySelectorAll('input:checked')].map(i=>i.value);
@@ -2989,7 +3019,7 @@ $('#btnChatInfo').onclick=async()=>{
     +(iAm?'<button class="btn ghost" id="gAvPick" style="margin-bottom:10px">Сменить фото группы</button>'
          +'<div style="display:flex;gap:8px;margin-bottom:16px"><input class="inp" id="gRename" value="'+esc(c.name||'')+'" maxlength="40">'
          +'<button class="btn" id="gSaveName" style="width:auto;padding:12px 16px">OK</button></div>':'')
-    +rows
+    +'<div class="picklist">'+rows+'</div>'
     +'<div style="height:14px"></div>'
     +(iAm && cand.length
       ? '<b style="font-size:12px;color:var(--mut)">ДОБАВИТЬ УЧАСТНИКА</b><select class="inp" id="addSel">'+opts+'</select>'
@@ -3335,7 +3365,8 @@ $('#btnSettings').onclick=()=>{
         +'<div style="font-size:12.5px;color:var(--mut)">'+esc(p.code||'')+'</div></div>'
         +'<button class="unb" data-u="'+u+'" style="font-size:12px;font-weight:700;color:var(--p-dark);background:var(--p-soft);padding:6px 10px;border-radius:8px">Разблокировать</button></div>';
     }).join('');
-    const bl=modal('<h3>Заблокированные</h3><p class="sub">Их сообщения и звонки к вам не приходят</p>'+rows);
+    const bl=modal('<h3>Заблокированные</h3><p class="sub">Их сообщения и звонки к вам не приходят</p>'
+      +'<div class="picklist">'+rows+'</div>');
     bl.m.querySelectorAll('.unb').forEach(btn=>btn.onclick=async()=>{
       blocked=blocked.filter(u=>u!==btn.dataset.u);
       await saveBlocked(); bl.close(); renderChatList(); toast('Разблокирован.',2000);
