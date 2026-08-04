@@ -1710,7 +1710,7 @@ function renderMsgs(id){
         if(ready) return Promise.resolve(ready);
         if(busy) return Promise.resolve(null);
         busy=true;
-        wrap.classList.add('loading'); setRing(0);
+        wrap.classList.add('loading'); setRing(0.02);
         return loadBlob(id,m,setRing).then(u=>{
           ready=u; busy=false;
           wrap.classList.remove('loading');
@@ -2518,28 +2518,63 @@ async function loadAlbumItem(chatId,m,idx){
   const url=URL.createObjectURL(new Blob([plain],{type:meta.mime||'image/jpeg'}));
   blobUrls.set(ck,url); return url;
 }
-async function loadBlob(chatId,m){
+async function loadBlob(chatId,m,onProgress){
   const ck=chatId+'/'+m.id;
   if(blobUrls.has(ck)) return blobUrls.get(ck);
   const key=await chatKey(chats.get(chatId));
   const type=(m.meta&&m.meta.mime)||'application/octet-stream';
+  const say=(p)=>{ try{ onProgress && onProgress(Math.max(0,Math.min(1,p))); }catch(e){} };
 
-  // Файл, разбитый на части: собираем обратно
+  // Файл, разбитый на части: собираем обратно, отмечая ход
   if(m.blob && m.blob.parts){
+    const total=m.blob.parts.length;
     const pieces=[];
-    for(let i=0;i<m.blob.parts.length;i++){
+    for(let i=0;i<total;i++){
+      say(i/total);
       const p=m.blob.parts[i];
       const {data,error}=await sb.storage.from('media').download(p.path);
       if(error) throw error;
       pieces.push(await decRaw(key, await data.arrayBuffer(), p.iv));
+      say((i+1)/total);
     }
     const url=URL.createObjectURL(new Blob(pieces,{type}));
     blobUrls.set(ck,url); return url;
   }
 
+  // Цельный файл тянем потоком: обычная загрузка не сообщает о ходе,
+  // и прогресс прыгал с нуля сразу к готовому
+  try{
+    const signed=await sb.storage.from('media').createSignedUrl(m.blob.path, 600);
+    const link=signed && signed.data && signed.data.signedUrl;
+    if(link){
+      const resp=await fetch(link);
+      if(resp.ok && resp.body && resp.body.getReader){
+        const len=parseInt(resp.headers.get('content-length')||'0',10) || ((m.meta&&m.meta.size)||0);
+        const reader=resp.body.getReader();
+        const chunks=[]; let got=0;
+        while(true){
+          const step=await reader.read();
+          if(step.done) break;
+          chunks.push(step.value); got+=step.value.length;
+          if(len) say(0.03 + 0.87*Math.min(1, got/len));
+        }
+        const all=new Uint8Array(got); let off=0;
+        chunks.forEach(c=>{ all.set(c,off); off+=c.length; });
+        say(0.94);
+        const plain=await decRaw(key, all.buffer, m.blob.iv);
+        say(1);
+        const url=URL.createObjectURL(new Blob([plain],{type}));
+        blobUrls.set(ck,url); return url;
+      }
+    }
+  }catch(e){ /* не получилось — обычным путём */ }
+
+  say(0.1);
   const {data,error}=await sb.storage.from('media').download(m.blob.path);
   if(error) throw error;
+  say(0.85);
   const plain=await decRaw(key, await data.arrayBuffer(), m.blob.iv);
+  say(1);
   const url=URL.createObjectURL(new Blob([plain],{type}));
   blobUrls.set(ck,url); return url;
 }
