@@ -1636,19 +1636,21 @@ function renderMsgs(id){
       loadBlob(id,m).then(u=>{
         wrap.onclick=ev=>{ ev.stopPropagation(); if(!selMode) videoBox(u, (m.meta&&m.meta.name)||'video.mp4'); };
         if(m.meta && m.meta.thumb) return;
-        // обложки нет (старое сообщение) — вытаскиваем кадр из самого файла
-        const vv=document.createElement('video');
-        vv.preload='metadata'; vv.muted=true; vv.playsInline=true; vv.src=u;
-        vv.onloadeddata=()=>{ try{ vv.currentTime=Math.min(0.5,(vv.duration||1)/3); }catch(e){} };
-        vv.onseeked=()=>{
-          try{
-            const k=Math.min(1, 640/Math.max(vv.videoWidth||1, vv.videoHeight||1));
-            cover.width=Math.max(1,Math.round((vv.videoWidth||320)*k));
-            cover.height=Math.max(1,Math.round((vv.videoHeight||240)*k));
-            cover.getContext('2d').drawImage(vv,0,0,cover.width,cover.height);
+        // Обложки нет (старое сообщение) — снимаем кадр и запоминаем,
+        // чтобы при следующем заходе она появилась сразу
+        fetch(u).then(r=>r.blob()).then(async blob=>{
+          const th=await videoThumb(blob);
+          if(!th || !th.thumb) return;
+          const im=new Image();
+          im.onload=()=>{
+            cover.width=im.naturalWidth; cover.height=im.naturalHeight;
+            cover.getContext('2d').drawImage(im,0,0);
             wrap.classList.add('ready');
-          }catch(e){}
-        };
+          };
+          im.src=th.thumb;
+          m.meta=Object.assign({}, m.meta||{}, {thumb:th.thumb, dur:th.dur||0});
+          try{ await sb.from('messages').update({meta:m.meta}).eq('id',m.id); }catch(e){}
+        }).catch(()=>{});
       }).catch(()=>{ play.textContent='!'; });
     }
     else if(m.kind==='audio'){
@@ -2681,31 +2683,72 @@ async function makeThumb(bytes, mime){
 
 function videoThumb(file){
   return new Promise(ok=>{
+    let url=null, v=null, done=false, tries=0;
+    const finish=(res)=>{
+      if(done) return; done=true;
+      try{ if(url) URL.revokeObjectURL(url); }catch(e){}
+      try{ if(v){ v.pause(); v.removeAttribute('src'); v.load(); } }catch(e){}
+      ok(res);
+    };
+
+    // Кадр не должен быть чёрным: в начале ролика часто затемнение,
+    // поэтому пробуем несколько моментов и проверяем яркость
+    const points=[];
+    const grab=()=>{
+      try{
+        const cv=document.createElement('canvas');
+        const k=Math.min(1, 480/Math.max(v.videoWidth||1, v.videoHeight||1));
+        cv.width=Math.max(1,Math.round((v.videoWidth||320)*k));
+        cv.height=Math.max(1,Math.round((v.videoHeight||240)*k));
+        const cx=cv.getContext('2d');
+        cx.drawImage(v,0,0,cv.width,cv.height);
+
+        // средняя яркость по сетке: если почти чёрный — берём кадр позже
+        let sum=0, n=0;
+        const px=cx.getImageData(0,0,cv.width,cv.height).data;
+        for(let i=0;i<px.length;i+=4*97){ sum+=px[i]+px[i+1]+px[i+2]; n+=3; }
+        const bright = n ? sum/n : 0;
+
+        if(bright<14 && tries<points.length){
+          v.currentTime=points[tries++];
+          return;
+        }
+        finish({thumb:cv.toDataURL('image/jpeg',0.72), dur:Math.round(v.duration||0)});
+      }catch(e){ finish(null); }
+    };
+
     try{
-      const url=URL.createObjectURL(file);
-      const v=document.createElement('video');
-      v.preload='metadata'; v.muted=true; v.playsInline=true; v.src=url;
-      const done=()=>{ URL.revokeObjectURL(url); ok(null); };
-      v.onloadeddata=()=>{
-        try{
-          v.currentTime=Math.min(0.6, (v.duration||1)/3);
-        }catch(e){ done(); }
+      url=URL.createObjectURL(file);
+      v=document.createElement('video');
+      v.preload='auto'; v.muted=true; v.defaultMuted=true;
+      v.playsInline=true; v.setAttribute('playsinline','');
+      v.setAttribute('webkit-playsinline','');
+      v.crossOrigin='anonymous';
+      v.src=url;
+
+      v.onloadedmetadata=()=>{
+        const d=v.duration||0;
+        // моменты в глубине ролика, а не в самом начале
+        points.length=0;
+        [0.1,0.25,0.5].forEach(f=>{
+          const t=(isFinite(d)&&d>0) ? Math.min(d*f, d-0.05) : 1;
+          if(t>0) points.push(t);
+        });
+        if(!points.length) points.push(0.8);
+        v.currentTime=points[tries++];
       };
       v.onseeked=()=>{
-        try{
-          const cv=document.createElement('canvas');
-          const k=Math.min(1, 420/Math.max(v.videoWidth||1, v.videoHeight||1));
-          cv.width=Math.max(1,Math.round((v.videoWidth||320)*k));
-          cv.height=Math.max(1,Math.round((v.videoHeight||240)*k));
-          cv.getContext('2d').drawImage(v,0,0,cv.width,cv.height);
-          const data=cv.toDataURL('image/jpeg',0.7);
-          URL.revokeObjectURL(url);
-          ok({thumb:data, dur:Math.round(v.duration||0)});
-        }catch(e){ done(); }
+        // даём кадру дорисоваться, иначе на телефоне забираем пустоту
+        setTimeout(grab, 90);
       };
-      v.onerror=done;
-      setTimeout(done,4000);
-    }catch(e){ ok(null); }
+      v.onerror=()=>finish(null);
+
+      // Safari отдаёт кадр только после запуска воспроизведения
+      const kick=v.play();
+      if(kick && kick.then) kick.then(()=>{ try{ v.pause(); }catch(e){} }).catch(()=>{});
+
+      setTimeout(()=>finish(null), 9000);
+    }catch(e){ finish(null); }
   });
 }
 
