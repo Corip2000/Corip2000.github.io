@@ -29,6 +29,27 @@ html[data-theme="dark"]{
 }
 html[data-theme="dark"]{ --p-deep:#EDE9F5; }
 html[data-theme="dark"] .mycode{background:#241B3D;color:#DCD3F5}
+/* ---- Зима: холодная палитра и заснеженный пейзаж ---- */
+html.winter{
+  --p:#3E7FD6; --p-dark:#2C5FA8; --p-deep:#1E3F73; --p-soft:#E4EEFB;
+  --bg:#EEF4FC; --panel:#FFFFFF; --txt:#152238; --mut:#6B7B94; --line:#DCE7F5;
+  --own:#D6E7FA; --chat-bg:#E9F1FA; --bub:#FFFFFF; --field:#F7FAFE; --comp:#E4EDF8;
+  --row-hover:#F4F8FD;
+}
+html.winter[data-theme="dark"]{
+  --p:#5B94E0; --p-dark:#3E7FD6; --p-deep:#BFD8F5; --p-soft:#1D2C43;
+  --bg:#0F1723; --panel:#16202F; --txt:#E7EEF8; --mut:#8FA1BA; --line:#243346;
+  --own:#22354F; --chat-bg:#121C29; --bub:#1C2839; --field:#18222F; --comp:#16202F;
+  --row-hover:#1C2839;
+}
+#snowLayer{position:fixed;inset:0;pointer-events:none;z-index:120}
+html.winter .side-top,html.winter .chat-top{background:linear-gradient(135deg,#4A8BDF 0%,#2C5FA8 100%)}
+html.winter .main::after{
+  content:'';position:absolute;left:0;right:0;bottom:0;height:190px;pointer-events:none;
+  background-repeat:no-repeat;background-position:bottom center;background-size:cover;opacity:.5;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1200' height='190' viewBox='0 0 1200 190'><path d='M0 150 C 120 120, 200 132, 300 148 C 420 168, 520 138, 640 150 C 760 162, 860 134, 980 146 C 1080 156, 1140 148, 1200 140 L1200 190 L0 190 Z' fill='%23ffffff' opacity='.85'/><path d='M0 168 C 160 150, 280 172, 420 166 C 580 158, 700 178, 860 170 C 1000 163, 1100 174, 1200 168 L1200 190 L0 190 Z' fill='%23ffffff'/><g fill='none' stroke='%239DBBD9' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M150 152 L150 128 M150 130 l-16 18 h32 z M150 116 l-13 16 h26 z M150 104 l-10 13 h20 z'/><path d='M205 156 L205 136 M205 138 l-12 14 h24 z M205 126 l-10 12 h20 z'/><path d='M1010 150 L1010 124 M1010 126 l-17 19 h34 z M1010 112 l-14 17 h28 z M1010 100 l-11 14 h22 z'/><path d='M1062 158 L1062 138 M1062 140 l-12 14 h24 z M1062 128 l-10 12 h20 z'/></g><g fill='%23ffffff' stroke='%239DBBD9' stroke-width='2'><circle cx='600' cy='158' r='19'/><circle cx='600' cy='133' r='14'/><circle cx='600' cy='113' r='10'/></g><g fill='none' stroke='%237E9BBC' stroke-width='2' stroke-linecap='round'><path d='M586 131 h-14 M614 131 h14'/><path d='M590 111 h20 M592 105 h16 v-5 h-16 z'/></g><g fill='%237E9BBC'><circle cx='596' cy='111' r='1.6'/><circle cx='604' cy='111' r='1.6'/><circle cx='600' cy='128' r='1.6'/><circle cx='600' cy='136' r='1.6'/></g></svg>");
+}
+html.winter[data-theme="dark"] .main::after{opacity:.16}
 html[data-theme="dark"] .mycode button{background:#3A2D5E;color:#EDE9F5}
 html[data-theme="dark"] .btn.ghost{background:#33285A;color:#EDE9F5}
 html[data-theme="dark"] .bub .who{color:#C4B5FD}
@@ -598,6 +619,75 @@ const S = {
 };
 
 /* ---------- оформление ---------- */
+/* ---------- зимнее оформление ----------
+   С декабря по февраль: холодные оттенки, узор с падающим снегом,
+   рисованный пейзаж на фоне переписки. Всё нарисовано линиями,
+   никаких эмодзи. Отключается в настройках. */
+function isWinter(){
+  const m=new Date().getMonth();
+  return m===11 || m===0 || m===1;
+}
+function winterOn(){
+  const mode=S.get('wa_winter')||'auto';
+  if(mode==='off') return false;
+  if(mode==='on') return true;
+  return isWinter();
+}
+function applyWinter(){
+  const on=winterOn();
+  document.documentElement.classList.toggle('winter', on);
+  const old=document.getElementById('snowLayer');
+  if(!on){ if(old) old.remove(); return; }
+  if(old) return;
+  const c=document.createElement('canvas');
+  c.id='snowLayer';
+  document.body.appendChild(c);
+  startSnow(c);
+}
+
+/** Мягкий снегопад поверх интерфейса, без нагрузки на телефон. */
+function startSnow(cv){
+  const cx=cv.getContext('2d');
+  let W=0,H=0,flakes=[],raf=null;
+  const density=()=>Math.min(70, Math.round(innerWidth*innerHeight/26000));
+  const resize=()=>{
+    W=cv.width=innerWidth; H=cv.height=innerHeight;
+    flakes=[];
+    const n=density();
+    for(let i=0;i<n;i++) flakes.push({
+      x:Math.random()*W, y:Math.random()*H,
+      r:0.9+Math.random()*2.1,
+      sp:0.25+Math.random()*0.75,
+      dr:(Math.random()-0.5)*0.35,
+      ph:Math.random()*Math.PI*2,
+      a:0.35+Math.random()*0.45
+    });
+  };
+  const tick=()=>{
+    if(!document.getElementById('snowLayer')){ cancelAnimationFrame(raf); return; }
+    cx.clearRect(0,0,W,H);
+    for(const f of flakes){
+      f.y+=f.sp; f.ph+=0.012;
+      f.x+=f.dr+Math.sin(f.ph)*0.32;
+      if(f.y>H+4){ f.y=-4; f.x=Math.random()*W; }
+      if(f.x<-6) f.x=W+6; else if(f.x>W+6) f.x=-6;
+      cx.globalAlpha=f.a;
+      cx.fillStyle='#ffffff';
+      cx.beginPath(); cx.arc(f.x,f.y,f.r,0,6.283); cx.fill();
+    }
+    cx.globalAlpha=1;
+    raf=requestAnimationFrame(tick);
+  };
+  addEventListener('resize',resize);
+  resize();
+  // при скрытой вкладке анимацию не крутим
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden) cancelAnimationFrame(raf);
+    else { cancelAnimationFrame(raf); raf=requestAnimationFrame(tick); }
+  });
+  raf=requestAnimationFrame(tick);
+}
+
 function setFont(pct){
   S.set('wa_font', String(pct));
   document.documentElement.style.setProperty('--fs', (parseInt(pct,10)/100*14.8)+'px');
@@ -753,6 +843,8 @@ const scrollBottom = ()=>{
    СТАРТ
    ============================================================ */
 applyTheme(); setFont(S.get('wa_font')||'100');
+addEventListener('DOMContentLoaded',applyWinter);
+setTimeout(applyWinter,0);
 (async function boot(){
   const sub=$('#gateSub');
   if(!window.supabase){ sub.textContent='Библиотека Supabase не загрузилась. Обновите страницу.'; return; }
@@ -2162,24 +2254,55 @@ async function saveFile(url, name){
   toast('Сохраняем…',1600);
 }
 function videoBox(u, name){
-  const w=el('div','lightbox');
+  const w=el('div','lightbox vidbox');
   const v=document.createElement('video');
-  v.src=u; v.controls=true; v.autoplay=true; v.playsInline=true;
+  v.src=u; v.controls=true; v.autoplay=true;
+  v.playsInline=true;
+  v.setAttribute('playsinline','');
+  v.setAttribute('webkit-playsinline','');
+  v.setAttribute('controlsList','nodownload');
   v.style.maxWidth='100%'; v.style.maxHeight='100%'; v.style.borderRadius='8px';
   w.appendChild(v);
+
   const bar=el('div','lb-bar');
   const SS='<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+
+  // На весь экран: в приложении встроенный полноэкранный режим WebView
+  // не запускается, поэтому просим его у самого элемента
+  const fs=el('button');
+  fs.title='На весь экран';
+  fs.innerHTML=SS+'<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+  fs.onclick=e=>{
+    e.stopPropagation();
+    try{
+      if(v.requestFullscreen) v.requestFullscreen();
+      else if(v.webkitEnterFullscreen) v.webkitEnterFullscreen();       // iPhone
+      else if(v.webkitRequestFullscreen) v.webkitRequestFullscreen();
+      else if(w.requestFullscreen) w.requestFullscreen();
+      else toast('Полноэкранный режим недоступен',2500);
+    }catch(err){ toast('Полноэкранный режим недоступен',2500); }
+  };
+  bar.appendChild(fs);
+
   const dl=el('button');
   dl.title='Скачать';
   dl.innerHTML=SS+'<path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>';
   dl.onclick=e=>{ e.stopPropagation(); saveFile(u, name||'video.mp4'); };
   bar.appendChild(dl);
-  const b=el('button'); b.innerHTML=SS+'<path d="M6 6l12 12M18 6L6 18"/></svg>';
-  b.onclick=e=>{ e.stopPropagation(); w.remove(); };
-  bar.appendChild(b); w.appendChild(bar);
+
+  const b=el('button'); b.title='Закрыть';
+  b.innerHTML=SS+'<path d="M6 6l12 12M18 6L6 18"/></svg>';
+  b.onclick=e=>{ e.stopPropagation(); try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(err){} w.remove(); };
+  bar.appendChild(b);
+
+  w.appendChild(bar);
   w.onclick=e=>{ if(e.target===w) w.remove(); };
   document.body.appendChild(w);
+  // двойной тап по видео тоже разворачивает
+  let t=0;
+  v.addEventListener('click',()=>{ const n=Date.now(); if(n-t<320) fs.onclick(new Event('x')); t=n; });
 }
+
 function lightbox(u, name){
   const w=el('div','lightbox');
   const img=document.createElement('img');
@@ -3615,6 +3738,11 @@ $('#btnSettings').onclick=()=>{
     +'<option value="auto">Как в системе</option>'
     +'<option value="light">Светлое</option>'
     +'<option value="dark">Тёмное</option></select></label>'
+    +'<label class="field"><b>Зимнее оформление</b>'
+    +'<select class="inp" id="winSel">'
+    +'<option value="auto">Автоматически (декабрь–февраль)</option>'
+    +'<option value="on">Всегда включено</option>'
+    +'<option value="off">Выключено</option></select></label>'
     +'<label class="field"><b>Размер текста</b>'
     +'<div style="display:flex;align-items:center;gap:10px">'
     +'<input type="range" id="fontRange" min="85" max="130" step="5" style="flex:1;accent-color:var(--p)">'
@@ -3671,6 +3799,11 @@ $('#btnSettings').onclick=()=>{
   if(ts){
     ts.value=S.get('wa_theme')||'auto';
     ts.onchange=()=>{ S.set('wa_theme',ts.value); applyTheme(ts.value); };
+  }
+  const ws=m.querySelector('#winSel');
+  if(ws){
+    ws.value=S.get('wa_winter')||'auto';
+    ws.onchange=()=>{ S.set('wa_winter',ws.value); applyWinter(); };
   }
   const fr=m.querySelector('#fontRange'), fv=m.querySelector('#fontVal');
   if(fr){
