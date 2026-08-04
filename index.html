@@ -241,8 +241,20 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
 .vidcard:not(.ready) .vidcover{width:220px;height:150px}
 .vidplay{position:absolute;width:54px;height:54px;border-radius:50%;background:rgba(0,0,0,.55);
   color:#fff;display:grid;place-items:center;font-size:22px;padding-left:4px;pointer-events:none}
-.viddur{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;
-  padding:1px 7px;border-radius:8px;pointer-events:none}
+.viddur{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.62);color:#fff;font-size:11.5px;
+  padding:2px 8px;border-radius:8px;pointer-events:none;font-variant-numeric:tabular-nums}
+.vidload{position:absolute;inset:0;display:none;place-items:center;background:rgba(0,0,0,.45)}
+.vidcard.loading .vidload{display:grid}
+.vidcard.loading .vidplay{display:none}
+.vidload svg{width:52px;height:52px;transform:rotate(-90deg)}
+.vidload circle{fill:none;stroke-width:3.5}
+.vidload .bg{stroke:rgba(255,255,255,.25)}
+.vidload .fg{stroke:#fff;stroke-linecap:round;transition:stroke-dashoffset .2s linear}
+.vidload span{position:absolute;color:#fff;font-size:12px;font-weight:700}
+.sendbadge{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom));
+  background:var(--p-dark);color:#fff;border-radius:20px;padding:7px 14px;display:flex;gap:10px;
+  align-items:center;font-size:13px;z-index:40;box-shadow:0 6px 18px rgba(40,0,90,.35)}
+.sendbadge i{font-style:normal;font-weight:700;font-variant-numeric:tabular-nums}
 .album{display:grid;grid-template-columns:1fr 1fr;gap:3px;border-radius:8px;overflow:hidden;margin-bottom:3px}
 .album.one{grid-template-columns:1fr}
 .album-i{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#ddd6ee;cursor:zoom-in}
@@ -623,7 +635,22 @@ function toast(text, ms=4200){
   const t=el('div','toast',text); document.body.appendChild(t);
   toastT=setTimeout(()=>t.remove(), ms);
 }
-const setProg=p=>{ const n=$('#prog'); if(n) n.style.width=(p*100)+'%'; };
+const setProg=p=>{
+  const n=$('#prog'); if(n) n.style.width=(p*100)+'%';
+  const b=document.querySelector('.sendbadge');
+  if(b && b.dataset.total) b.querySelector('i').textContent=Math.round(p*100)+'%';
+};
+
+/** Плашка «Отправка … 47%» поверх поля ввода. */
+function sendBadge(totalBytes){
+  const old=document.querySelector('.sendbadge');
+  if(!totalBytes){ if(old) old.remove(); return; }
+  if(old) old.remove();
+  const b=el('div','sendbadge');
+  b.dataset.total=String(totalBytes);
+  b.innerHTML='<span>Отправка '+sizeStr(totalBytes)+'</span><i>0%</i>';
+  document.body.appendChild(b);
+}
 
 /* ---------- шифрование ---------- */
 let myPriv=null;
@@ -1618,6 +1645,115 @@ function renderMsgs(id){
       const cover=document.createElement('canvas'); cover.className='vidcover';
       const play=el('div','vidplay','▶');
       wrap.append(cover, play);
+
+      // Подпись: длительность и вес, как в мессенджерах
+      const info=el('div','viddur');
+      const size=(m.meta&&m.meta.size)||0;
+      const setInfo=()=>{
+        const d=(m.meta&&m.meta.dur)?mmss(m.meta.dur):'';
+        info.textContent = d ? (d+(size?' · '+sizeStr(size):'')) : (size?sizeStr(size):'видео');
+      };
+      setInfo();
+      wrap.appendChild(info);
+
+      // Кольцо загрузки с процентами
+      const ring=el('div','vidload');
+      ring.innerHTML='<svg viewBox="0 0 44 44"><circle class="bg" cx="22" cy="22" r="19"></circle>'
+        +'<circle class="fg" cx="22" cy="22" r="19"></circle></svg><span>0%</span>';
+      const fg=ring.querySelector('.fg'), lbl=ring.querySelector('span');
+      const LEN=2*Math.PI*19;
+      fg.style.strokeDasharray=LEN;
+      fg.style.strokeDashoffset=LEN;
+      const setRing=(p)=>{
+        fg.style.strokeDashoffset=LEN*(1-p);
+        lbl.textContent=Math.round(p*100)+'%';
+      };
+      wrap.appendChild(ring);
+
+      b.appendChild(wrap);
+      if(m.text) b.appendChild(el('div','txt',m.text));
+
+      // Обложка, сохранённая при отправке: показывается сразу, без загрузки видео
+      if(m.meta && m.meta.thumb){
+        const im=new Image();
+        im.onload=()=>{
+          cover.width=im.naturalWidth; cover.height=im.naturalHeight;
+          cover.getContext('2d').drawImage(im,0,0);
+          wrap.classList.add('ready');
+        };
+        im.src=m.meta.thumb;
+      }
+
+      const afterLoad=(u)=>{
+        if(!u || (m.meta && m.meta.thumb)) return;
+        // Обложки нет (старое сообщение) — снимаем кадр и дописываем в сообщение,
+        // чтобы в следующий раз она появилась сразу
+        fetch(u).then(r=>r.blob()).then(async blob=>{
+          const th=await videoThumb(blob);
+          if(!th || !th.thumb) return;
+          const im=new Image();
+          im.onload=()=>{
+            cover.width=im.naturalWidth; cover.height=im.naturalHeight;
+            cover.getContext('2d').drawImage(im,0,0);
+            wrap.classList.add('ready');
+          };
+          im.src=th.thumb;
+          m.meta=Object.assign({}, m.meta||{}, {thumb:th.thumb, dur:th.dur||0});
+          setInfo();
+          try{ await sb.from('messages').update({meta:m.meta}).eq('id',m.id); }catch(e){}
+        }).catch(()=>{});
+      };
+
+      // Само видео качаем по нажатию, иначе чат съест весь трафик
+      let ready=null, busy=false;
+      const fetchVideo=()=>{
+        if(ready) return Promise.resolve(ready);
+        if(busy) return Promise.resolve(null);
+        busy=true;
+        wrap.classList.add('loading'); setRing(0);
+        return loadBlob(id,m,setRing).then(u=>{
+          ready=u; busy=false;
+          wrap.classList.remove('loading');
+          afterLoad(u);
+          return u;
+        }).catch(e=>{
+          busy=false; wrap.classList.remove('loading');
+          play.textContent='!';
+          toast('Не удалось загрузить видео: '+(e.message||e),5000);
+          return null;
+        });
+      };
+
+      wrap.onclick=async ev=>{
+        ev.stopPropagation();
+        if(selMode) return;
+        const u=await fetchVideo();
+        if(u) videoBox(u, (m.meta&&m.meta.name)||'video.mp4');
+      };
+
+      // Обложки нет — тихо подгружаем, чтобы её построить
+      if(!(m.meta && m.meta.thumb)) fetchVideo();
+    }
+    else if(m.kind==='poll') renderPoll(b,m);
+    else if(m.kind==='text'){
+      const t=el('div','txt');
+      hiText(t, m.text);
+      b.appendChild(t);
+    }
+    else if(m.kind==='image'){
+      const img=el('img','ph'); img.alt='фото'; b.appendChild(img);
+      loadBlob(id,m).then(u=>{
+        img.src=u;
+        img.onload=()=>{ const bx=$('#msgs'); if(bx && bx.scrollHeight-bx.scrollTop-bx.clientHeight<260) bx.scrollTop=bx.scrollHeight; };
+        img.onclick=()=>lightbox(u,(m.meta&&m.meta.name)||'photo.jpg');
+      }).catch(()=>img.alt='не загрузилось');
+      if(m.text) b.appendChild(el('div','txt',m.text));
+    }
+    else if(m.kind==='video'){
+      const wrap=el('div','vidcard');
+      const cover=document.createElement('canvas'); cover.className='vidcover';
+      const play=el('div','vidplay','▶');
+      wrap.append(cover, play);
       if(m.meta && m.meta.dur) wrap.appendChild(el('div','viddur', mmss(m.meta.dur)));
       b.appendChild(wrap);
       if(m.text) b.appendChild(el('div','txt',m.text));
@@ -2348,7 +2484,7 @@ async function putBlob(chatId,key,bytes,mime){
       {contentType:'application/octet-stream', upsert:false});
     if(error) throw error;
     parts.push({path, iv});
-    setProg(0.15 + 0.7*(i+1)/total);
+    setProg(0.1 + 0.85*(i+1)/total);
   }
   return {parts, mime, size:bytes.length};
 }
@@ -2469,6 +2605,8 @@ async function sendAlbum(list, captionText, rep, toChat){
   const ts=Date.now();
   const enc=await encText(key, captionText||'');
   const blobs=[], metas=[];
+  const totalBytes=list.reduce((s,x)=>s+(x.bytes?x.bytes.length:0),0);
+  if(totalBytes>1024*1024) sendBadge(totalBytes);
   for(let i=0;i<list.length;i++){
     setProg((i+1)/(list.length+1));
     const b=await putBlob(c.id,key,list[i].bytes,list[i].mime);
@@ -2491,7 +2629,7 @@ async function sendAlbum(list, captionText, rep, toChat){
   await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind:'album',ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
   bumpChat(c.id, ts, {from:me.uid,kind:'album',ts,ct:enc.ct,iv:enc.iv});
-  setProg(0);
+  setProg(0); sendBadge(0); sendBadge(0);
   if(payload.bytes && payload.bytes.length>2*1024*1024) setTimeout(()=>autoClean(true), 3000);
   const myAv=(profiles.get(me.uid)||{}).avatar||null;
   pushTo(c.members.filter(u=>u!==me.uid), c.type==='group'?(c.name||'Группа'):me.name,
@@ -2511,7 +2649,7 @@ async function sendMsg(kind, payload, toChat){
   const ttl=await freshTtl(c);
   if(ttl>0) row.expires_at = ts + ttl*1000;
   if(payload.bytes){
-    if(payload.bytes.length>CHUNK_SIZE) toast('Отправляем '+sizeStr(payload.bytes.length)+', это займёт время…',4000);
+    if(payload.bytes.length>1024*1024) sendBadge(payload.bytes.length);
     setProg(.15);
     row.blob=await putBlob(c.id,key,payload.bytes,payload.meta&&payload.meta.mime);
     row.meta=payload.meta||{};
@@ -2672,6 +2810,29 @@ $('#camPick').onchange=async e=>{
 };
 
 let photoState=null;
+/**
+ * Определяет тип по первым байтам файла.
+ * Имя и заявленный тип с телефона приходят как попало,
+ * поэтому смотрим саму сигнатуру — так фото не превратится в видео.
+ */
+function sniffType(bytes){
+  if(!bytes || bytes.length<12) return null;
+  const b=bytes;
+  if(b[0]===0xFF && b[1]===0xD8 && b[2]===0xFF) return 'image/jpeg';
+  if(b[0]===0x89 && b[1]===0x50 && b[2]===0x4E && b[3]===0x47) return 'image/png';
+  if(b[0]===0x47 && b[1]===0x49 && b[2]===0x46) return 'image/gif';
+  if(b[0]===0x52 && b[1]===0x49 && b[2]===0x46 && b[8]===0x57 && b[9]===0x45) return 'image/webp';
+  // ISO-контейнер: ....ftyp
+  if(b[4]===0x66 && b[5]===0x74 && b[6]===0x79 && b[7]===0x70){
+    const brand=String.fromCharCode(b[8],b[9],b[10],b[11]).toLowerCase();
+    if(brand.indexOf('hei')===0 || brand.indexOf('mif')===0 || brand.indexOf('msf')===0) return 'image/heic';
+    return 'video/mp4';
+  }
+  if(b[0]===0x1A && b[1]===0x45 && b[2]===0xDF && b[3]===0xA3) return 'video/webm';
+  if(b[0]===0x4F && b[1]===0x67 && b[2]===0x67 && b[3]===0x53) return 'video/ogg';
+  return null;
+}
+
 /** Кадр-обложка из готовых байтов видео. */
 async function makeThumb(bytes, mime){
   try{
@@ -2756,7 +2917,12 @@ async function prepPhotos(files){
   const out=[]; let failed=0;
   for(const f of files){
     // видео не жмём: отправляем как есть, если помещается
-    if(/^video\//.test(f.type||'') || /\.(mp4|mov|m4v|webm|3gp|mkv)$/i.test(f.name||'')){
+    let head=null;
+    try{ head=new Uint8Array(await f.slice(0,16).arrayBuffer()); }catch(e){}
+    const sniffed=sniffType(head);
+    const looksVideo = sniffed ? sniffed.indexOf('video/')===0
+                     : (/^video\//.test(f.type||'') || /\.(mp4|mov|m4v|webm|3gp|mkv)$/i.test(f.name||''));
+    if(looksVideo){
       try{
         if(f.size>MAX_FILE){ toast('Видео больше '+sizeStr(MAX_FILE)+', пропустил.',3500); continue; }
         const bytes=new Uint8Array(await f.arrayBuffer());
@@ -2797,11 +2963,13 @@ window.__nativePhotos = async function(list, captionText){
     const items=list.map(x=>{
       const nm=String(x.name||'photo.jpg');
       const bar=nm.indexOf('|');
-      const isVid=bar>0;
-      return {bytes:unb64(x.b64),
-              mime: isVid ? nm.slice(bar+1) : 'image/jpeg',
-              name: isVid ? nm.slice(0,bar) : nm,
-              video: isVid};
+      const declared = bar>0 ? nm.slice(bar+1) : '';
+      const name = bar>0 ? nm.slice(0,bar) : nm;
+      const bytes=unb64(x.b64);
+      // сигнатура файла надёжнее имени и типа, присланных телефоном
+      const real = sniffType(bytes) || declared || 'image/jpeg';
+      const isVid = real.indexOf('video/')===0;
+      return {bytes, mime:real, name, video:isVid};
     });
     const vids=items.filter(x=>x.video), pics=items.filter(x=>!x.video);
     if(vids.length){
@@ -2873,7 +3041,7 @@ async function openPhotoPicker(files){
           meta:{name:v.name, size:v.bytes.length, mime:v.mime, dur:v.dur, thumb:v.url||''}});
         capUsed=true;
       }
-    }catch(err){ setProg(0); toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),9000); }
+    }catch(err){ setProg(0); sendBadge(0); toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),9000); }
     stickBottom=true; scrollBottom();
   };
 }
