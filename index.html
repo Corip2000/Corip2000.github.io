@@ -839,16 +839,42 @@ function startApp(){
   beat(true);
   setInterval(()=>{ if(!document.hidden) beat(true); }, 12000);
   // Профиль собеседника обновляем сразу, а не ждём общей перезагрузки чатов
-  sb.channel('presence-feed')
-    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'profiles'},({new:row})=>{
-      if(!row || !row.id) return;
-      profiles.set(row.id, Object.assign({}, profiles.get(row.id)||{}, row));
-      if(curChat){
-        const c=chats.get(curChat);
-        if(c && c.members.indexOf(row.id)>=0) paintHeader();
-      }
-    }).subscribe();
-  setInterval(()=>{ if(curChat && !document.hidden) paintHeader(); }, 10000);
+  let presChan=null;
+  const startPresence=()=>{
+    if(presChan) try{ sb.removeChannel(presChan); }catch(e){}
+    presChan = sb.channel('presence-feed-'+rid(6))
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'profiles'},({new:row})=>{
+        if(!row || !row.id) return;
+        profiles.set(row.id, Object.assign({}, profiles.get(row.id)||{}, row));
+        renderChatList();
+        if(curChat){
+          const c=chats.get(curChat);
+          if(c && c.members.indexOf(row.id)>=0) paintHeader();
+        }
+      })
+      .subscribe(st=>{
+        // канал иногда отваливается молча — поднимаем заново
+        if(st==='CHANNEL_ERROR' || st==='TIMED_OUT' || st==='CLOSED'){
+          setTimeout(startPresence, 4000);
+        }
+      });
+  };
+  startPresence();
+
+  // Подстраховка: раз в 15 секунд перечитываем профили собеседников открытого чата
+  async function refreshPresence(){
+    if(!curChat || document.hidden) return;
+    const c=chats.get(curChat); if(!c) return;
+    const others=c.members.filter(u=>u!==me.uid);
+    if(!others.length) return;
+    try{
+      const {data}=await sb.from('profiles').select('id,name,avatar,code,online,last_seen').in('id',others);
+      (data||[]).forEach(r=>profiles.set(r.id, Object.assign({}, profiles.get(r.id)||{}, r)));
+      paintHeader();
+    }catch(e){}
+  }
+  setInterval(refreshPresence, 15000);
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ startPresence(); refreshPresence(); } });
   document.addEventListener('visibilitychange',()=>{
     beat(!document.hidden);
     if(!document.hidden && curChat) refreshTicks(curChat);
@@ -1236,6 +1262,15 @@ async function openChat(id){
   if(!$('#findBar').classList.contains('hidden')) findClose();
   nativeCall('setActiveChat', id);
   paintHeader(); renderChatList();
+  (async()=>{
+    const others=c.members.filter(u=>u!==me.uid);
+    if(!others.length) return;
+    try{
+      const {data}=await sb.from('profiles').select('id,name,avatar,code,online,last_seen').in('id',others);
+      (data||[]).forEach(r=>profiles.set(r.id, Object.assign({}, profiles.get(r.id)||{}, r)));
+      if(curChat===id) paintHeader();
+    }catch(e){}
+  })();
   const ip=$('#msgInput');
   ip.value = drafts[id] || '';
   ip.style.height='auto'; ip.dispatchEvent(new Event('input'));
@@ -3393,29 +3428,65 @@ async function startCall(video){
   sendSystem((video?'Видеозвонок':'Звонок')+' начат: '+me.name).catch(()=>{});
 }
 
-let ringOsc=null;
+let ringOsc=null, ringVib=null;
 function ring(on){
   try{
     if(on && !ringOsc){
-      const ac=new (window.AudioContext||window.webkitAudioContext)();
+      const ac=audioCtx() || new (window.AudioContext||window.webkitAudioContext)();
+      if(ac.state==='suspended') ac.resume();
       const g=ac.createGain(); g.gain.value=0.0001; g.connect(ac.destination);
-      const o=ac.createOscillator(); o.type='sine'; o.frequency.value=520; o.connect(g); o.start();
-      let t=0; const iv=setInterval(()=>{ t++; g.gain.setTargetAtTime((t%2)?0.06:0.0001, ac.currentTime, .02); },500);
-      ringOsc={ac,o,iv};
-    }else if(!on && ringOsc){ clearInterval(ringOsc.iv); ringOsc.o.stop(); ringOsc.ac.close(); ringOsc=null; }
+      const o1=ac.createOscillator(); o1.type='sine'; o1.frequency.value=440; o1.connect(g); o1.start();
+      const o2=ac.createOscillator(); o2.type='sine'; o2.frequency.value=550; o2.connect(g); o2.start();
+      // ду-дуу … пауза … ду-дуу — привычный рисунок вызова
+      const vol=Math.max(0.12, (typeof notifVol!=='undefined'?notifVol:0.6)*0.55);
+      let step=0;
+      const iv=setInterval(()=>{
+        const phase=step%8;
+        const loud = phase===0 || phase===2;
+        g.gain.setTargetAtTime(loud?vol:0.0001, ac.currentTime, .015);
+        o1.frequency.setValueAtTime(phase===0?440:490, ac.currentTime);
+        step++;
+      },380);
+      ringOsc={ac,o1,o2,iv};
+      try{
+        if(navigator.vibrate){
+          navigator.vibrate([500,400,500,1500]);
+          ringVib=setInterval(()=>navigator.vibrate([500,400,500,1500]),2900);
+        }
+      }catch(e){}
+    }else if(!on && ringOsc){
+      clearInterval(ringOsc.iv);
+      try{ ringOsc.o1.stop(); ringOsc.o2.stop(); }catch(e){}
+      try{ ringOsc.ac.close(); }catch(e){}
+      ringOsc=null;
+      if(ringVib){ clearInterval(ringVib); ringVib=null; }
+      try{ if(navigator.vibrate) navigator.vibrate(0); }catch(e){}
+    }
   }catch(e){}
 }
 function showIncoming(inv){
   const old=document.querySelector('.incoming'); if(old) old.remove();
+  audioCtx();
   ring(true);
-  if(document.hidden) notify(inv.title||inv.fromName||'Звонок', inv.video?'Входящий видеозвонок':'Входящий звонок', 'call');
+  // Одно уведомление на iOS звучит однократно и легко теряется —
+  // напоминаем несколько раз, пока вызов не принят
+  let rings=0;
+  const notifyLoop=setInterval(()=>{
+    rings++;
+    if(rings>8 || !document.querySelector('.incoming')){ clearInterval(notifyLoop); return; }
+    if(document.hidden) notify(inv.title||inv.fromName||'Звонок',
+      inv.video?'Входящий видеозвонок':'Входящий звонок', 'call'+rings, null);
+  },4000);
+  const stopLoop=()=>clearInterval(notifyLoop);
+  if(document.hidden) notify(inv.title||inv.fromName||'Звонок',
+    inv.video?'Входящий видеозвонок':'Входящий звонок', 'call0', null);
   const w=el('div','incoming'); w.dataset.room=inv.roomId;
   w.innerHTML='<div class="av" style="background:hsl('+hue(inv.from)+' 55% 52%)">'+esc(initials(inv.fromName))+'</div>'
     +'<div style="flex:1"><b>'+esc(inv.title||inv.fromName||'Контакт')+'</b><small>'+(inv.video?'Входящий видеозвонок':'Входящий звонок')+'</small></div>'
     +'<button class="rbtn" id="dec" style="background:var(--bad)">✕</button>'
     +'<button class="rbtn" id="acc" style="background:var(--ok)">✆</button>';
   document.body.appendChild(w);
-  const kill=()=>{ ring(false); w.remove(); };
+  const kill=()=>{ ring(false); stopLoop(); w.remove(); };
   const timer=setTimeout(kill,45000);
   w.querySelector('#dec').onclick=()=>{ clearTimeout(timer); kill(); };
   w.querySelector('#acc').onclick=async()=>{
