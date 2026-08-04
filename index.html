@@ -860,6 +860,8 @@ function startApp(){
   setTimeout(()=>offerApk(false), 1500);
   loadIce();
   loadChats(); watchChats(); watchCalls(); watchFeed();
+  setTimeout(()=>autoClean(true), 20000);          // проверка вскоре после запуска
+  setInterval(()=>{ if(!document.hidden) autoClean(false); }, 15*60*1000);
   setInterval(()=>{ if(!document.hidden) loadChats(); }, 20000);
   flushOutbox();
   document.addEventListener('click',()=>audioCtx(),{once:true});
@@ -2116,26 +2118,6 @@ function blobPaths(m){
   return out;
 }
 
-/** Удаляет вложения старше указанного срока. Тексты сообщений остаются. */
-async function cleanOld(days, items){
-  const edge=Date.now()-days*86400000;
-  const old=items.filter(x=>x.ts<edge);
-  if(!old.length) return {n:0, bytes:0};
-  const paths=[];
-  old.forEach(x=>blobPaths(x).forEach(p=>paths.push(p)));
-  const freed=old.reduce((s,x)=>s+x.size,0);
-  for(let i=0;i<paths.length;i+=80){
-    const {error}=await sb.storage.from('media').remove(paths.slice(i,i+80));
-    if(error) throw error;
-  }
-  // сами сообщения убираем, иначе останутся битые вложения
-  const ids=old.map(x=>x.id);
-  for(let i=0;i<ids.length;i+=100){
-    await sb.from('messages').delete().in('id',ids.slice(i,i+100));
-  }
-  return {n:old.length, bytes:freed};
-}
-
 /* ---------- восстановление после фона ----------
    На iOS вкладка засыпает, вебсокеты обрываются без уведомления,
    и сообщения перестают приходить до перезагрузки страницы.
@@ -2183,64 +2165,90 @@ function ttlText(sec){
   if(sec<86400) return (sec/3600)+' ч';
   return (sec/86400)+' дн';
 }
-/** Выбор срока, старше которого вложения удаляются. */
-function cleanMenu(items, after){
-  const opts=[[7,'старше недели'],[30,'старше месяца'],[90,'старше 3 месяцев'],[180,'старше полугода'],[0,'все вложения']];
-  const wrap=el('div','sheet'); wrap.style.zIndex='95';
-  const inner=el('div','sheet-in');
-  inner.appendChild(el('div','peek','Файлы удалятся у всех участников. Текст сообщений останется.'));
-  opts.forEach(([days,label])=>{
-    const edge=days?Date.now()-days*86400000:Date.now();
-    const hit=items.filter(x=>x.ts<edge);
-    const vol=hit.reduce((s,x)=>s+x.size,0);
-    const b=el('button',null,'🗑  Удалить '+label+' · '+hit.length+' шт, '+sizeStr(vol));
-    if(!hit.length) b.style.opacity='.45';
-    b.onclick=async()=>{
-      if(!hit.length) return;
-      wrap.remove();
-      toast('Удаляем '+hit.length+' вложений…',3000);
-      try{
-        const r=await cleanOld(days||0, items);
-        toast('Освобождено '+sizeStr(r.bytes)+' · удалено '+r.n,4000);
-        if(curChat){ msgCache.delete(curChat); const k=curChat; curChat=null; openChat(k); }
-        if(after) after();
-      }catch(e){ toast('Ошибка очистки: '+(e.message||e),7000); }
-    };
-    inner.appendChild(b);
-  });
-  const cancel=el('button','cancel','Отмена');
-  cancel.onclick=()=>wrap.remove();
-  inner.appendChild(cancel);
-  wrap.appendChild(inner);
-  wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
-  document.body.appendChild(wrap);
+/**
+ * Автоматическая уборка.
+ *
+ * Когда хранилище заполнено больше чем на 80%, удаляем вложения
+ * по кругу: одно самое старое из каждого чата, потом второе и так далее.
+ * Так место освобождается равномерно и ни один чат не пустеет первым.
+ * Как только опустились ниже 80% — останавливаемся.
+ */
+const CLEAN_START = 0.80;      // с какого заполнения начинаем убирать
+const CLEAN_STOP  = 0.75;      // до какого доводим, чтобы не дёргаться у самой границы
+let cleaning=false, lastCleanCheck=0;
+
+async function autoClean(force){
+  if(cleaning) return;
+  const now=Date.now();
+  if(!force && now-lastCleanCheck < 10*60*1000) return;   // проверяем не чаще раза в 10 минут
+  lastCleanCheck=now;
+  cleaning=true;
+  try{
+    let {bytes, items}=await storageUsage();
+    if(bytes < STORAGE_LIMIT*CLEAN_START) return;
+
+    // раскладываем вложения по чатам, внутри каждого — от старых к новым
+    const byChat=new Map();
+    items.sort((a,b)=>a.ts-b.ts).forEach(it=>{
+      if(!byChat.has(it.chat)) byChat.set(it.chat,[]);
+      byChat.get(it.chat).push(it);
+    });
+
+    const doomed=[];
+    let freed=0;
+    const target=bytes - STORAGE_LIMIT*CLEAN_STOP;
+    // круг за кругом снимаем по одному самому старому из каждого чата
+    let round=0;
+    while(freed<target){
+      let took=false;
+      for(const list of byChat.values()){
+        if(round>=list.length) continue;
+        const it=list[round];
+        doomed.push(it); freed+=it.size; took=true;
+        if(freed>=target) break;
+      }
+      if(!took) break;          // вложений больше не осталось
+      round++;
+    }
+    if(!doomed.length) return;
+
+    const paths=[];
+    doomed.forEach(x=>blobPaths(x).forEach(p=>paths.push(p)));
+    for(let i=0;i<paths.length;i+=80){
+      await sb.storage.from('media').remove(paths.slice(i,i+80));
+    }
+    const ids=doomed.map(x=>x.id);
+    for(let i=0;i<ids.length;i+=100){
+      await sb.from('messages').delete().in('id',ids.slice(i,i+100));
+    }
+    ids.forEach(id=>{ msgCache.forEach(cache=>cache.delete(id)); });
+    if(curChat) renderMsgs(curChat);
+    console.log('Автоуборка: удалено '+doomed.length+' вложений, освобождено '+sizeStr(freed));
+  }catch(e){
+    console.warn('Автоуборка не удалась:', e);
+  }finally{
+    cleaning=false;
+  }
 }
 
-function ttlMenu(c, close){
-  const opts=[[0,'Выключить'],[60,'1 минута'],[3600,'1 час'],[43200,'12 часов'],
-              [86400,'1 день'],[604800,'1 неделя'],[2592000,'30 дней']];
-  const wrap=el('div','sheet');
-  wrap.style.zIndex='90';        // окно чата уже открыто, панель должна быть выше
-  const inner=el('div','sheet-in');
-  inner.appendChild(el('div','peek','Сообщения будут удаляться у всех по истечении срока'));
-  opts.forEach(([sec,label])=>{
-    const b=el('button',null,(Number(c.ttl||0)===sec?'✓  ':'  ')+label);
-    b.onclick=async()=>{
-      wrap.remove();
-      const {error}=await sb.from('chats').update({ttl:sec}).eq('id',c.id);
-      if(error) return toast('Ошибка: '+error.message,6000);
-      c.ttl=sec;
-      if(close) close();
-      toast(sec?('Исчезающие сообщения: '+ttlText(sec)):'Исчезающие сообщения выключены',3000);
-    };
-    inner.appendChild(b);
-  });
-  const cancel=el('button','cancel','Отмена');
-  cancel.onclick=()=>wrap.remove();
-  inner.appendChild(cancel);
-  wrap.appendChild(inner);
-  wrap.onclick=e=>{ if(e.target===wrap) wrap.remove(); };
-  document.body.appendChild(wrap);
+const TTL_OPTS=[[0,'Выключено'],[60,'1 минута'],[3600,'1 час'],[43200,'12 часов'],
+                [86400,'1 день'],[604800,'1 неделя'],[2592000,'30 дней']];
+function ttlOptions(c){
+  const cur=Number(c.ttl||0);
+  return TTL_OPTS.map(([sec,label])=>
+    '<option value="'+sec+'"'+(cur===sec?' selected':'')+'>'+label+'</option>').join('');
+}
+function bindTtl(m, c){
+  const sel=m.querySelector('#ttlSel'); if(!sel) return;
+  sel.onchange=async()=>{
+    const sec=parseInt(sel.value,10)||0;
+    const prev=Number(c.ttl||0);
+    const {error}=await sb.from('chats').update({ttl:sec}).eq('id',c.id);
+    if(error){ sel.value=String(prev); return toast('Ошибка: '+error.message,6000); }
+    c.ttl=sec;
+    if(curChat===c.id) paintHeader();
+    toast(sec?('Сообщения будут исчезать через '+ttlText(sec)):'Исчезающие сообщения выключены',3000);
+  };
 }
 
 /* ---------- поиск по переписке ---------- */
@@ -2449,6 +2457,7 @@ async function sendAlbum(list, captionText, rep, toChat){
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
   bumpChat(c.id, ts, {from:me.uid,kind:'album',ts,ct:enc.ct,iv:enc.iv});
   setProg(0);
+  if(payload.bytes && payload.bytes.length>2*1024*1024) setTimeout(()=>autoClean(true), 3000);
   const myAv=(profiles.get(me.uid)||{}).avatar||null;
   pushTo(c.members.filter(u=>u!==me.uid), c.type==='group'?(c.name||'Группа'):me.name,
          (c.type==='group'?me.name+': ':'')+'📷 Фото', row.id,
@@ -3128,7 +3137,8 @@ $('#btnChatInfo').onclick=async()=>{
       +'<input class="inp" id="nick" maxlength="28" value="'+esc(localNames[other]||'')+'" placeholder="'+esc(p.name||'')+'"></label>'
       +'<button class="btn ghost" id="saveNick">Сохранить имя</button>'
       +chatOptsHtml(c)
-      +'<div style="height:8px"></div><button class="btn ghost" id="ttlC">Исчезающие сообщения: <b id="ttlV"></b></button>'
+      +'<label class="field" style="margin-top:12px"><b>Исчезающие сообщения</b>'
+      +'<select class="inp" id="ttlSel">'+ttlOptions(c)+'</select></label>'
       +'<div style="height:8px"></div><button class="btn ghost" id="clrC">Очистить историю</button>'
       +'<div style="height:8px"></div><button class="btn danger" id="blkC">'+(isBlocked(other)?'Разблокировать':'Заблокировать')+'</button>'
       +'<p class="note">Общий ключ вычисляется из ваших ключевых пар и никуда не передаётся. Сервер хранит только шифротекст.</p>');
@@ -3142,8 +3152,7 @@ $('#btnChatInfo').onclick=async()=>{
       toast('Имя изменено только у вас — собеседник этого не увидит.',3800);
     };
     bindChatOpts(m, c, close);
-    m.querySelector('#ttlV').textContent=ttlText(Number(c.ttl||0));
-    m.querySelector('#ttlC').onclick=()=>ttlMenu(c, close);
+    bindTtl(m, c);
     m.querySelector('#clrC').onclick=()=>clearChat(c, close);
     m.querySelector('#blkC').onclick=async()=>{
       if(isBlocked(other)){ blocked=blocked.filter(u=>u!==other); toast('Пользователь разблокирован.',2400); }
@@ -3193,7 +3202,8 @@ $('#btnChatInfo').onclick=async()=>{
         +'<div style="height:8px"></div><button class="btn ghost" id="addM">Добавить в группу</button>'
       : (iAm?'<p class="sub">Все ваши контакты уже в группе.</p>':''))
     +chatOptsHtml(c)
-    +'<div style="height:10px"></div><button class="btn ghost" id="ttlG">Исчезающие сообщения: <b></b></button>'
+    +'<label class="field" style="margin-top:12px"><b>Исчезающие сообщения</b>'
+    +'<select class="inp" id="ttlSel">'+ttlOptions(c)+'</select></label>'
     +'<div style="height:8px"></div><button class="btn ghost" id="clrG">Очистить историю</button>'
     +'<div style="height:8px"></div><button class="btn danger" id="leaveG">Выйти из группы</button>'
     +(iAm?'<p class="note">Звезда рядом с участником делает его администратором: он сможет менять фото и название группы, добавлять и удалять людей.</p>':''));
@@ -3279,8 +3289,7 @@ $('#btnChatInfo').onclick=async()=>{
   };
 
   bindChatOpts(m, c, close);
-  const tg=m.querySelector('#ttlG');
-  if(tg){ tg.querySelector('b').textContent=ttlText(Number(c.ttl||0)); tg.onclick=()=>ttlMenu(c, close); }
+  bindTtl(m, c);
   m.querySelector('#clrG').onclick=()=>clearChat(c, close);
   m.querySelector('#leaveG').onclick=async()=>{
     await sb.from('chats').update({members:c.members.filter(u=>u!==me.uid), admins:(c.admins||[]).filter(u=>u!==me.uid)}).eq('id',c.id);
@@ -3305,7 +3314,6 @@ $('#btnSettings').onclick=()=>{
     +'<label class="field" style="margin-top:14px"><b>Место для вложений</b>'
     +'<div class="storbox"><div class="storbar"><div id="storFill"></div></div>'
     +'<div id="storText" style="font-size:13px;color:var(--mut);margin-top:6px">Считаем…</div>'
-    +'<button class="btn ghost" id="storClean" style="margin-top:10px;display:none">Удалить старые файлы</button>'
     +'</div></label>'
     +'<label class="field" style="margin-top:14px"><b>Оформление</b>'
     +'<select class="inp" id="themeSel">'
@@ -3349,7 +3357,7 @@ $('#btnSettings').onclick=()=>{
   // место в хранилище
   (async()=>{
     const fill=m.querySelector('#storFill'), txt=m.querySelector('#storText'),
-          btn=m.querySelector('#storClean'), bar=m.querySelector('.storbar');
+          bar=m.querySelector('.storbar');
     if(!fill) return;
     try{
       const {bytes, items}=await storageUsage();
@@ -3358,17 +3366,9 @@ $('#btnSettings').onclick=()=>{
       bar.classList.toggle('warn', pct>=70 && pct<90);
       bar.classList.toggle('full', pct>=90);
       txt.innerHTML='Занято <b>'+sizeStr(bytes)+'</b> из 1 ГБ · вложений: '+items.length
-        + (pct>=90 ? '<br><span style="color:var(--bad)">Место почти кончилось — новые файлы могут не отправиться.</span>'
-          : pct>=70 ? '<br><span style="color:#B57516">Больше двух третей занято.</span>' : '');
-      if(items.length){
-        btn.style.display='flex';
-        btn.onclick=()=>cleanMenu(items, async()=>{
-          const r=await storageUsage();
-          const p2=Math.min(100, r.bytes/STORAGE_LIMIT*100);
-          fill.style.width=Math.max(1,p2)+'%';
-          txt.innerHTML='Занято <b>'+sizeStr(r.bytes)+'</b> из 1 ГБ · вложений: '+r.items.length;
-        });
-      }
+        + '<br><span style="opacity:.8">При заполнении выше 80% самые старые вложения удаляются сами, '
+        + 'равномерно во всех чатах. Переписка остаётся.</span>';
+      if(pct>=CLEAN_START*100) autoClean(true);
     }catch(e){ txt.textContent='Не удалось посчитать: '+(e.message||e); }
   })();
 
