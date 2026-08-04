@@ -534,15 +534,39 @@ const APK_URL = 'WhereApp.apk';
 const MAX_FILE   = 20 * 1024 * 1024;    // 20 МБ на файл
 const IMG_TARGET = 1.5 * 1024 * 1024;   // цель сжатия фото
 const LIMIT_MSG  = 'Извините, но сайт имеет бесплатную базу данных, сожмите файл (лимит 20 МБ). Зато звонить можно!!';
-// TURN-ретранслятор: без него звонок не пробьётся через строгий NAT сотового оператора.
-// Ниже публичный бесплатный сервер без гарантий. Свой можно завести на metered.ca (50 ГБ/мес бесплатно)
-// и вписать сюда логин с паролем.
-const TURN = [
-  {urls:'turn:openrelay.metered.ca:80',            username:'openrelayproject', credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443',           username:'openrelayproject', credential:'openrelayproject'},
-  {urls:'turn:openrelay.metered.ca:443?transport=tcp', username:'openrelayproject', credential:'openrelayproject'}
+// Ретрансляторы для звонков.
+// Свои данные вписываются в METERED_KEY: зарегистрируйтесь на metered.ca,
+// раздел Open Relay, и скопируйте оттуда ключ API. Пока ключа нет,
+// работают только прямые соединения и публичные STUN.
+const METERED_APP = 'whereapp';           // имя приложения из кабинета metered.ca
+const METERED_KEY = 'bc6eaf9dcb6f2f759bbb6e34a21b662d4c1c';
+
+const STUN_ONLY = [
+  {urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302',
+         'stun:stun2.l.google.com:19302','stun:global.stun.twilio.com:3478']}
 ];
-const ICE = { iceServers:[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302','stun:global.stun.twilio.com:3478']}].concat(TURN), iceCandidatePoolSize:4 };
+let ICE = { iceServers: STUN_ONLY.slice(), iceCandidatePoolSize: 4 };
+
+/** Забирает свежие ретрансляторы: старые общие данные больше не действуют. */
+async function loadIce(){
+  const cached = S.get('wa_ice');
+  const until = parseInt(S.get('wa_ice_until')||'0',10);
+  if(cached && until>Date.now()){
+    try{ ICE={iceServers:JSON.parse(cached), iceCandidatePoolSize:4}; return; }catch(e){}
+  }
+  if(!METERED_KEY) return;
+  try{
+    const r=await fetch('https://'+METERED_APP+'.metered.live/api/v1/turn/credentials?apiKey='+METERED_KEY);
+    if(!r.ok) return;
+    const list=await r.json();
+    if(Array.isArray(list) && list.length){
+      const servers=STUN_ONLY.concat(list);
+      ICE={iceServers:servers, iceCandidatePoolSize:4};
+      S.set('wa_ice', JSON.stringify(servers));
+      S.set('wa_ice_until', String(Date.now()+6*3600*1000));
+    }
+  }catch(e){}
+}
 
 /* ---------- хранилище настроек ---------- */
 const mem = {};
@@ -825,6 +849,7 @@ function startApp(){
   });
   nativeCall('setUid', me.uid);
   setTimeout(()=>offerApk(false), 1500);
+  loadIce();
   loadChats(); watchChats(); watchCalls(); watchFeed();
   setInterval(()=>{ if(!document.hidden) loadChats(); }, 20000);
   flushOutbox();
@@ -874,7 +899,17 @@ function startApp(){
     }catch(e){}
   }
   setInterval(refreshPresence, 15000);
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ startPresence(); refreshPresence(); } });
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden) return;
+    startPresence(); refreshPresence();
+    // Safari рвёт вебсокеты в фоне и молчит об этом:
+    // при возврате пересобираем каналы и догружаем пропущенное
+    resync('возврат');
+  });
+  addEventListener('focus',()=>resync('фокус'));
+  addEventListener('pageshow',()=>resync('показ'));
+  addEventListener('online',()=>resync('сеть'));
+  setInterval(()=>{ if(!document.hidden) resync('таймер'); }, 25000);
   document.addEventListener('visibilitychange',()=>{
     beat(!document.hidden);
     if(!document.hidden && curChat) refreshTicks(curChat);
@@ -1043,8 +1078,8 @@ async function notify(title, body, tag, icon){
   }
 }
 function watchFeed(){
-  if(feedChan) sb.removeChannel(feedChan);
-  feedChan = sb.channel('feed')
+  if(feedChan) try{ sb.removeChannel(feedChan); }catch(e){}
+  feedChan = sb.channel('feed-'+rid(6))
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'}, async ({new:row})=>{
       if(row.from_uid===me.uid || isBlocked(row.from_uid)) return;
       const c=chats.get(row.chat_id); if(!c) return;
@@ -1064,7 +1099,10 @@ function watchFeed(){
       notify(c.type==='group'?(c.name||'Группа'):who, (c.type==='group'?who+': ':'')+body, row.id,
              (profiles.get(row.from_uid)||{}).avatar||null);
     })
-    .subscribe();
+    .subscribe(st=>{
+      // канал молча отваливается после фона — поднимаем заново
+      if(st==='CHANNEL_ERROR' || st==='TIMED_OUT' || st==='CLOSED') setTimeout(watchFeed, 4000);
+    });
 }
 
 /* ============================================================
@@ -1995,6 +2033,35 @@ function lightbox(u, name){
 
   w.onclick=()=>w.remove();
   document.body.appendChild(w);
+}
+
+/* ---------- восстановление после фона ----------
+   На iOS вкладка засыпает, вебсокеты обрываются без уведомления,
+   и сообщения перестают приходить до перезагрузки страницы.
+   Здесь мы сами замечаем разрыв и всё пересобираем. */
+let lastSync=0;
+async function resync(why){
+  if(!sb || !me.uid) return;
+  const now=Date.now();
+  if(now-lastSync<4000) return;          // не чаще раза в 4 секунды
+  lastSync=now;
+  try{
+    await loadChats();
+    if(curChat){
+      const id=curChat;
+      const {data}=await sb.from('messages').select('*')
+        .eq('chat_id',id).order('ts',{ascending:false}).limit(60);
+      if(data && data.length){
+        await absorb(id, data.reverse());
+        if(curChat===id){ renderMsgs(id); markRead(id); }
+      }
+      // канал сообщений мог умереть вместе с вкладкой
+      if(msgChan && msgChan.state!=='joined'){
+        const keep=curChat; curChat=null; await openChat(keep);
+      }
+    }
+    flushOutbox();
+  }catch(e){}
 }
 
 /* ---------- исчезающие сообщения ---------- */
@@ -3513,6 +3580,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 async function joinRoom(roomId, chat, video, isCaller){
+  await loadIce();
   const many=(chat.members||[]).length>2;
   const vCons = many ? {width:{ideal:640},height:{ideal:360},frameRate:{ideal:20,max:24},facingMode:'user'}
                      : {width:{ideal:1280},height:{ideal:720},frameRate:{ideal:24,max:30},facingMode:'user'};
@@ -3565,9 +3633,24 @@ function pcFor(uid){
   pc.onconnectionstatechange=()=>{
     if(pc.connectionState==='connected'){ clearTimeout(p.retryT); setStatus('Соединено'); }
   };
+  pc.onicecandidate=pc.onicecandidate;
   pc.oniceconnectionstatechange=()=>{
     const st=pc.iceConnectionState;
-    if(st==='connected'||st==='completed'){ clearTimeout(p.retryT); p.tries=0; setStatus('Соединено'); return; }
+    if(st==='connected'||st==='completed'){
+      clearTimeout(p.retryT); p.tries=0; setStatus('Соединено');
+      // Показываем, идёт ли трафик напрямую или через ретранслятор
+      try{
+        pc.getStats().then(rep=>{
+          rep.forEach(r=>{
+            if(r.type==='candidate-pair' && r.state==='succeeded' && r.nominated){
+              const l=rep.get(r.localCandidateId);
+              if(l && l.candidateType==='relay') setStatus('Соединено · через ретранслятор');
+            }
+          });
+        }).catch(()=>{});
+      }catch(e){}
+      return;
+    }
     if(st==='disconnected'){
       setStatus('Связь пропала, восстанавливаем…');
       clearTimeout(p.retryT);
