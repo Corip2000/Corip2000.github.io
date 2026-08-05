@@ -735,14 +735,20 @@ const setProg=p=>{
 };
 
 /** Плашка «Отправка … 47%» поверх поля ввода. */
+let badgeGuard=null;
 function sendBadge(totalBytes){
   const old=document.querySelector('.sendbadge');
+  clearTimeout(badgeGuard);
   if(!totalBytes){ if(old) old.remove(); return; }
   if(old) old.remove();
   const b=el('div','sendbadge');
   b.dataset.total=String(totalBytes);
   b.innerHTML='<span>Отправка '+sizeStr(totalBytes)+'</span><i>0%</i>';
+  b.title='Нажмите, чтобы скрыть';
+  b.onclick=()=>{ const n=document.querySelector('.sendbadge'); if(n) n.remove(); };
   document.body.appendChild(b);
+  // Подстраховка: если отправка оборвётся неожиданно, плашка не зависнет
+  badgeGuard=setTimeout(()=>{ const n=document.querySelector('.sendbadge'); if(n) n.remove(); }, 90*1000);
 }
 
 /* ---------- шифрование ---------- */
@@ -1041,7 +1047,7 @@ function startApp(){
   nativeCall('setUid', me.uid);
   setTimeout(()=>offerApk(false), 1500);
   loadIce();
-  loadChats(); watchChats(); watchCalls(); watchFeed();
+  loadChats().then(warmKeys); watchChats(); watchCalls(); watchFeed();
   setTimeout(()=>autoClean(true), 20000);          // проверка вскоре после запуска
   setInterval(()=>{ if(!document.hidden) autoClean(false); }, 15*60*1000);
   setInterval(()=>{ if(!document.hidden) loadChats(); }, 20000);
@@ -1329,6 +1335,20 @@ async function getProfile(uid){
 const normChat = r => ({id:r.id, type:r.type, name:r.name, owner:r.owner, members:r.members||[],
                         admins:r.admins||[], avatar:r.avatar||null, ttl:Number(r.ttl)||0,
                         gkeys:r.gkeys||{}, last:r.last, pinned:r.pinned||null, updatedAt:Number(r.updated_at)||0});
+
+/**
+ * Заранее готовит ключи всех чатов.
+ * Раньше ключ вычислялся при первом входе в чат, и первое открытие
+ * подтормаживало. Теперь всё считается сразу после запуска.
+ */
+async function warmKeys(){
+  const list=[...chats.values()];
+  for(const c of list){
+    try{ await chatKey(c); }catch(e){}
+    await new Promise(r=>setTimeout(r,0));   // не блокируем интерфейс
+  }
+  renderChatList();
+}
 
 async function loadChats(){
   const {data,error}=await sb.from('chats').select('*').contains('members',[me.uid]);
@@ -2836,16 +2856,32 @@ function bumpChat(chatId, ts, last){
 }
 
 /* ---------- отправка ---------- */
-/** Актуальный срок жизни сообщений в чате. */
+/**
+ * Срок жизни сообщений. Значение кэшируем на полминуты:
+ * отдельный запрос перед каждой отправкой добавлял заметную задержку.
+ */
+const ttlCache=new Map();
 async function freshTtl(c){
+  const hit=ttlCache.get(c.id);
+  if(hit && Date.now()-hit.at<30000) return hit.v;
   try{
     const {data}=await sb.from('chats').select('ttl').eq('id',c.id).maybeSingle();
-    if(data){ c.ttl=Number(data.ttl)||0; return c.ttl; }
+    if(data){
+      c.ttl=Number(data.ttl)||0;
+      ttlCache.set(c.id,{v:c.ttl, at:Date.now()});
+      return c.ttl;
+    }
   }catch(e){}
-  return Number(c.ttl||0);
+  const v=Number(c.ttl||0);
+  ttlCache.set(c.id,{v, at:Date.now()});
+  return v;
 }
 
 async function sendAlbum(list, captionText, rep, toChat){
+  try{ return await sendAlbumInner(list, captionText, rep, toChat); }
+  finally{ setProg(0); sendBadge(0); }
+}
+async function sendAlbumInner(list, captionText, rep, toChat){
   const c=chats.get(toChat||curChat); if(!c) return;
   const key=await chatKey(c);
   const ts=Date.now();
@@ -2875,7 +2911,7 @@ async function sendAlbum(list, captionText, rep, toChat){
   await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind:'album',ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
   bumpChat(c.id, ts, {from:me.uid,kind:'album',ts,ct:enc.ct,iv:enc.iv});
-  setProg(0); sendBadge(0); sendBadge(0);
+  setProg(0); sendBadge(0);
   if(payload.bytes && payload.bytes.length>2*1024*1024) setTimeout(()=>autoClean(true), 3000);
   const myAv=(profiles.get(me.uid)||{}).avatar||null;
   pushTo(c.members.filter(u=>u!==me.uid), c.type==='group'?(c.name||'Группа'):me.name,
@@ -2885,6 +2921,10 @@ async function sendAlbum(list, captionText, rep, toChat){
 }
 
 async function sendMsg(kind, payload, toChat){
+  try{ return await sendMsgInner(kind, payload, toChat); }
+  finally{ setProg(0); sendBadge(0); }
+}
+async function sendMsgInner(kind, payload, toChat){
   const c=chats.get(toChat||curChat); if(!c) return;
   const key=await chatKey(c);
   const ts=Date.now();
@@ -2901,6 +2941,15 @@ async function sendMsg(kind, payload, toChat){
     row.meta=payload.meta||{};
     setProg(.75);
   }
+  // Показываем своё сообщение сразу, до ответа сервера: иначе есть заметная пауза
+  if(!payload.bytes){
+    try{
+      if(!msgCache.has(c.id)) msgCache.set(c.id,new Map());
+      await absorb(c.id,[Object.assign({},row,{delivered_to:[],read_by:[]})]);
+      if(curChat===c.id){ renderMsgs(c.id); scrollBottom(); }
+    }catch(e){}
+  }
+
   let {error}=await sb.from('messages').insert(row);
   if(error && row.reply && /reply|schema cache|column/i.test(error.message||'')){
     delete row.reply;                       // база ещё без колонки — отправляем без цитаты
@@ -2914,7 +2963,8 @@ async function sendMsg(kind, payload, toChat){
     await absorb(c.id,[Object.assign({},row,{delivered_to:[],read_by:[]})]);
     if(curChat===c.id){ renderMsgs(c.id); scrollBottom(); }
   }catch(e){}
-  await sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id);
+  // Не ждём: список чатов и уведомления обновляются параллельно
+  sb.from('chats').update({updated_at:ts, last:{from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv}}).eq('id',c.id).then(()=>{},()=>{});
   seenAt[c.id]=ts; S.set('wa_seen',JSON.stringify(seenAt));
   bumpChat(c.id, ts, {from:me.uid,kind,ts,ct:enc.ct,iv:enc.iv});
   setProg(0);
@@ -3231,7 +3281,7 @@ window.__nativePhotos = async function(list, captionText){
           meta:{name:v.name, size:v.bytes.length, mime:v.mime, thumb:th.thumb||'', dur:th.dur||0}});
         used=true;
       }
-      stickBottom=true; scrollBottom(); return;
+      stickBottom=true; setProg(0); sendBadge(0); scrollBottom(); return;
     }
     if(items.length===1){
       await sendMsg('image',{bytes:items[0].bytes, text:captionText||'', reply:rep,
@@ -3287,7 +3337,8 @@ async function openPhotoPicker(files){
           meta:{name:v.name, size:v.bytes.length, mime:v.mime, dur:v.dur, thumb:v.url||''}});
         capUsed=true;
       }
-    }catch(err){ setProg(0); sendBadge(0); toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),9000); }
+    }catch(err){ toast('ОШИБКА ОТПРАВКИ: '+(err.message||err),9000); }
+    finally{ setProg(0); sendBadge(0); }
     stickBottom=true; scrollBottom();
   };
 }
@@ -4569,6 +4620,43 @@ function minimizeCall(){
     bar.style.top=Math.max(4,Math.min(innerHeight-bar.offsetHeight-4, ev.clientY-dy))+'px';
     bar.style.right='auto'; bar.style.bottom='auto';
   });
+  bar.addEventListener('pointerup',()=>{
+    if(!moved) return;
+    // запоминаем, куда перетащили: при следующем сворачивании плашка будет там же
+    S.set('wa_minipos', JSON.stringify({left:bar.style.left, top:bar.style.top}));
+  });
+
+  // возвращаем сохранённое место
+  try{
+    const saved=JSON.parse(S.get('wa_minipos')||'null');
+    if(saved && saved.left && saved.top){
+      const L=parseFloat(saved.left), T=parseFloat(saved.top);
+      if(isFinite(L) && isFinite(T)){
+        bar.style.left=Math.max(4,Math.min(innerWidth-140, L))+'px';
+        bar.style.top=Math.max(4,Math.min(innerHeight-80, T))+'px';
+        bar.style.right='auto'; bar.style.bottom='auto';
+      }
+    }
+  }catch(e){}
+  // Запоминаем, куда перетащили: при следующем звонке плашка будет там же
+  ['pointerup','pointercancel'].forEach(e=>bar.addEventListener(e,()=>{
+    if(!moved) return;
+    S.set('wa_minipos', JSON.stringify({
+      left:parseInt(bar.style.left,10)||0,
+      top:parseInt(bar.style.top,10)||0
+    }));
+  }));
+
+  // Возвращаем сохранённое место
+  try{
+    const saved=JSON.parse(S.get('wa_minipos')||'null');
+    if(saved){
+      const w=bar.offsetWidth||150, hh=bar.offsetHeight||40;
+      bar.style.left=Math.max(4,Math.min(innerWidth-w-4, saved.left))+'px';
+      bar.style.top=Math.max(4,Math.min(innerHeight-hh-4, saved.top))+'px';
+      bar.style.right='auto'; bar.style.bottom='auto';
+    }
+  }catch(e){}
   call.miniT=setInterval(()=>{
     const t=document.getElementById('miniTime');
     if(t && call) t.textContent=mmss((Date.now()-call.started)/1000);
