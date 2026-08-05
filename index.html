@@ -171,6 +171,11 @@ html[data-theme="dark"]{--wall:url("data:image/svg+xml;utf8,<svg xmlns='http://w
 .seldot.on{background:var(--p);border-color:var(--p)}
 .bub.me .seldot{right:auto;left:-8px}
 .selmode .bub{cursor:pointer}
+.blockbar{display:flex;align-items:center;gap:10px;padding:9px 12px;background:#FDE7E7;
+  color:#9E1C1C;font-size:13.5px;font-weight:600;border-bottom:1px solid #F5C9C9;z-index:3}
+html[data-theme="dark"] .blockbar{background:#3A1A1A;color:#F5A9A9;border-bottom-color:#4E2323}
+.blockbar span{flex:1}
+.blockbar button{background:#9E1C1C;color:#fff;border-radius:9px;padding:6px 11px;font-size:12.5px;font-weight:700;flex:none}
 .findbar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);
   border-bottom:1px solid var(--line);z-index:3}
 .findbar input{flex:1;border:0;outline:none;background:var(--field);color:var(--txt);
@@ -494,6 +499,10 @@ html[data-theme="dark"] mark{background:#6B5410;color:#FFEEB5}
       <button id="selCopy" title="Копировать">📋</button>
       <button id="selShare" title="Переслать">↗</button>
       <button id="selDel" title="Удалить">🗑</button>
+    </div>
+    <div class="blockbar hidden" id="blockBar">
+      <span id="blockText">Вы заблокировали этого пользователя</span>
+      <button id="blockUndo">Разблокировать</button>
     </div>
     <div class="findbar hidden" id="findBar">
       <input id="findInput" placeholder="Поиск в переписке" autocomplete="off">
@@ -1048,11 +1057,18 @@ function startApp(){
   setTimeout(()=>offerApk(false), 1500);
   loadIce();
   loadChats().then(warmKeys); watchChats(); watchCalls(); watchFeed();
+  watchCallRows();
+  checkPendingCalls();
+  setInterval(()=>{ if(!document.hidden) checkPendingCalls(); }, 12000);
   setTimeout(()=>autoClean(true), 20000);          // проверка вскоре после запуска
   setInterval(()=>{ if(!document.hidden) autoClean(false); }, 15*60*1000);
   setInterval(()=>{ if(!document.hidden) loadChats(); }, 20000);
   flushOutbox();
-  document.addEventListener('click',()=>audioCtx(),{once:true});
+  // Safari разрешает звук только после касания и глушит его, когда контекст
+  // засыпает. Поэтому будим его при каждом взаимодействии.
+  ['click','touchend','keydown'].forEach(ev=>document.addEventListener(ev,()=>{
+    try{ const a=audioCtx(); if(a && a.state==='suspended') a.resume(); }catch(e){}
+  }));
   if(window.Notification && Notification.permission==='default' && !S.get('wa_nobar')) setTimeout(notifyBar,1500);
   const beat=(on)=>{
     if(S.get('wa_hide_online')==='1'){
@@ -1104,6 +1120,7 @@ function startApp(){
     // Safari рвёт вебсокеты в фоне и молчит об этом:
     // при возврате пересобираем каналы и догружаем пропущенное
     resync('возврат');
+    watchCalls(); watchCallRows(); checkPendingCalls();
   });
   addEventListener('focus',()=>resync('фокус'));
   addEventListener('pageshow',()=>resync('показ'));
@@ -1276,6 +1293,27 @@ async function notify(title, body, tag, icon){
     try{ const n=new Notification(title,opts); n.onclick=()=>{ try{window.focus();}catch(x){} n.close(); }; }catch(x){}
   }
 }
+/** Дублирующий путь для звонков — через изменения в базе. */
+let callRowChan=null;
+function watchCallRows(){
+  if(callRowChan) try{ sb.removeChannel(callRowChan); }catch(e){}
+  callRowChan = sb.channel('calls-'+rid(5))
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'calls',filter:'to_uid=eq.'+me.uid},
+      ({new:row})=>{
+        const p=row.payload||{};
+        p.roomId=p.roomId||row.room_id; p.from=p.from||row.from_uid; p.ts=p.ts||Number(row.ts);
+        handleRing(p);
+      })
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'calls'},
+      ({old})=>{
+        const w=document.querySelector('.incoming');
+        if(w && old && w.dataset.room===old.room_id){ ring(false); w.remove(); }
+      })
+    .subscribe(st=>{
+      if(st==='CHANNEL_ERROR' || st==='TIMED_OUT' || st==='CLOSED') setTimeout(watchCallRows, 4000);
+    });
+}
+
 function watchFeed(){
   if(feedChan) try{ sb.removeChannel(feedChan); }catch(e){}
   feedChan = sb.channel('feed-'+rid(6))
@@ -1427,7 +1465,6 @@ function lastSeenText(ts){
 function renderChatList(){
   const q=$('#searchInput').value.trim().toLowerCase();
   const all=[...chats.values()]
-    .filter(c=>!(c.type==='direct' && isBlocked(c.members.find(u=>u!==me.uid))))
     .filter(c=>!q || chatTitle(c).toLowerCase().indexOf(q)>=0);
   const archived=all.filter(c=>opt(c.id).arch);
   const list=all.filter(c=>showArchive ? opt(c.id).arch : !opt(c.id).arch)
@@ -1465,6 +1502,8 @@ function renderChatList(){
     const top=el('div','row-t');
     const nameEl=el('b',null,t);
     top.append(nameEl);
+    const blk = c.type==='direct' && isBlocked(c.members.find(u=>u!==me.uid));
+    if(blk){ nameEl.style.opacity='.6'; top.append(el('span','rowicon','⛔')); }
     const o=opt(c.id);
     if(o.mute) top.append(el('span','rowicon','🔕'));
     if(o.pin) top.append(el('span','rowicon','📌'));
@@ -1682,6 +1721,24 @@ function paintHeader(){
   $('#btnAudioCall').style.display = solo?'none':'grid';
   $('#btnVideoCall').style.display = solo?'none':'grid';
   if(solo) $('#topSub').textContent='Заметки только для вас';
+  // Предупреждение о блокировке прямо в чате
+  const bb=$('#blockBar');
+  if(bb){
+    const other=c.type==='direct' ? c.members.find(u=>u!==me.uid) : null;
+    const isBlk=other && isBlocked(other);
+    bb.classList.toggle('hidden', !isBlk);
+    if(isBlk){
+      $('#blockText').textContent='Вы заблокировали '+displayName(other)+' · сообщения и звонки не приходят';
+      $('#blockUndo').onclick=async()=>{
+        blocked=blocked.filter(u=>u!==other);
+        await saveBlocked();
+        bb.classList.add('hidden');
+        renderChatList();
+        toast('Пользователь разблокирован',2400);
+      };
+    }
+  }
+
   const ttlOn=Number(c.ttl||0)>0;
   $('#topName').textContent = (ttlOn?'⏳ ':'')+chatTitle(c);
   const act=actingText(c);
@@ -3862,7 +3919,7 @@ $('#btnSettings').onclick=()=>{
     +'<label class="field"><b>Ваш код</b><input class="inp" id="cc" value="'+esc(me.code)+'" readonly></label>'
     +'<button class="btn" id="saveN">Сохранить имя</button>'
     +'<div style="height:8px"></div><button class="btn ghost" id="copyC">Копировать код</button>'
-    +'<div style="height:8px"></div><button class="btn ghost" id="notifBtn">Включить уведомления</button>'
+
     +'<div style="height:8px"></div><button class="btn ghost" id="diagBtn">Проверить уведомления</button>'
     +'<pre id="diagOut" class="hidden" style="white-space:pre-wrap;font-size:11.5px;background:#F6F3FC;border-radius:10px;padding:12px;margin-top:10px;line-height:1.6"></pre>'
     +'<label class="pick" style="margin-top:10px"><input type="checkbox" id="hideOnline">'
@@ -3891,9 +3948,9 @@ $('#btnSettings').onclick=()=>{
     +'<span id="volVal" style="width:44px;text-align:right;font-weight:700;color:var(--p-dark)"></span></div></label>'
     +'<div id="pushOut" class="note" style="margin-top:6px"></div>'
 
-    +'<div style="height:8px"></div><button class="btn ghost" id="howTo">Как получать сообщения всегда</button>'
+
     +(isAndroid() && !NATIVE ? '<div style="height:8px"></div><button class="btn ghost" id="getApk">Скачать приложение для Android</button>' : '')
-    +'<div style="height:8px"></div><button class="btn ghost" id="blkList">Заблокированные ('+blocked.length+')</button>'
+
     +'<div style="height:8px"></div><button class="btn ghost" id="expK">Ключ для входа на другом устройстве</button>'
     +'<div id="keyOut" class="hidden" style="margin-top:10px"><textarea class="inp" id="keyTxt" rows="3" readonly style="font-size:11px;resize:vertical"></textarea>'
     +'<div style="height:6px"></div><button class="btn ghost" id="copyK">Копировать ключ</button></div>'
@@ -3961,181 +4018,6 @@ $('#btnSettings').onclick=()=>{
   m.querySelector('#avBox').onclick=()=>{
     const url=(profiles.get(me.uid)||{}).avatar;
     if(url) lightbox(url,'avatar.jpg'); else m.querySelector('#avPick').click();
-  };
-  const nb=m.querySelector('#notifBtn');
-  const refreshNb=()=>{
-    if(NATIVE){
-      nb.textContent='Уведомления показывает приложение ✓';
-      nb.disabled=true;
-      const po=m.querySelector('#pushOut');
-      if(po) po.innerHTML='Вы в приложении WhereApp. Уведомления приходят через постоянную службу — '
-        +'ту, что висит в шторке как «WhereApp на связи». Проверка ниже относится только к сайту в браузере.';
-      const pt=m.querySelector('#pushTest'); if(pt){ pt.disabled=true; pt.textContent='Не требуется в приложении'; }
-      const sr=m.querySelector('#swReset'); if(sr) sr.style.display='none';
-      return;
-    }
-    if(!window.Notification){ nb.textContent='Браузер не поддерживает уведомления'; nb.disabled=true; return; }
-    if(Notification.permission==='granted') nb.textContent='Уведомления включены ✓';
-    else if(Notification.permission==='denied') nb.textContent='Уведомления запрещены в браузере';
-    else nb.textContent='Включить уведомления';
-  };
-  refreshNb();
-  nb.onclick=async()=>{
-    const r=await askNotify();
-    refreshNb();
-    if(r==='denied') toast('Разрешение снято в браузере. Нажмите на замочек слева в адресной строке → Разрешения → Уведомления → Разрешить.',9000);
-    else if(r==='default') toast('Окно запроса закрылось без ответа. Нажмите кнопку ещё раз.',6000);
-  };
-  m.querySelector('#diagBtn').onclick=async()=>{
-    const out=m.querySelector('#diagOut'); out.classList.remove('hidden');
-    out.textContent='Проверяем…';
-    const L=[];
-    L.push('Адрес: '+location.origin+location.pathname);
-    L.push('Защищённое соединение (https): '+(window.isSecureContext?'да':'НЕТ — уведомления работать не будут'));
-    L.push('Notification API: '+(window.Notification?'есть':'НЕТ'));
-    L.push('Разрешение: '+(window.Notification?Notification.permission:'—'));
-    L.push('Поддержка service worker: '+(('serviceWorker' in navigator)?'есть':'НЕТ'));
-
-    let swUrl=new URL('sw.js',location.href).href;
-    L.push('Ожидаемый путь к sw.js: '+swUrl);
-    try{
-      const r=await fetch(swUrl,{cache:'no-store'});
-      const txt=await r.text();
-      const looksJs = txt.indexOf('notificationclick')>=0;
-      L.push('Файл sw.js: HTTP '+r.status+(r.ok?(looksJs?' — найден и это нужный файл':' — найден, НО содержимое не то (возможно, страница 404)'):' — НЕ НАЙДЕН, загрузите sw.js рядом с index.html'));
-    }catch(e){ L.push('Файл sw.js: ошибка запроса — '+e.message); }
-
-    try{ await initSW(); }catch(e){}
-    L.push('Регистрация service worker: '+(swReg?'успешно':'НЕ УДАЛАСЬ'+(swErr?' — '+swErr:'')));
-    if(navigator.serviceWorker){
-      const reg=await navigator.serviceWorker.getRegistration();
-      L.push('Активный worker: '+(reg&&reg.active?'да':'нет'));
-    }
-
-    if(window.Notification && Notification.permission==='granted'){
-      try{
-        const reg=swReg||(navigator.serviceWorker?await navigator.serviceWorker.getRegistration():null);
-        if(reg&&reg.showNotification){ await reg.showNotification('WhereApp',{body:'Тестовое уведомление',icon:NOTIF_ICON,tag:'whereapp'}); L.push('Показ через worker: отправлено ✓'); }
-        else { new Notification('WhereApp',{body:'Тестовое уведомление'}); L.push('Показ напрямую: отправлено ✓'); }
-        const reg2=swReg||(navigator.serviceWorker?await navigator.serviceWorker.getRegistration():null);
-        if(reg2&&reg2.getNotifications){
-          const live=await reg2.getNotifications();
-          L.push('Уведомлений в системе сейчас: '+live.length+(live.length?' — значит показ работает, ищите в шторке' : ' — Android их скрывает, проверьте настройки Chrome'));
-        }
-        if(reg2&&reg2.pushManager){
-          const s=await reg2.pushManager.getSubscription();
-          L.push('Подписка на push: '+(s?'есть ✓':'нет'));
-        }
-      }catch(e){ L.push('Показ уведомления: ОШИБКА — '+(e.message||e)); }
-    }else L.push('Показ уведомления: пропущен, нет разрешения');
-
-    out.textContent=L.join('\n');
-  };
-  const _noop={onclick:null,style:{},disabled:false,textContent:''};
-  const q=(s)=>m.querySelector(s)||_noop;
-  q('#pushTest').onclick=async()=>{
-    const out=m.querySelector('#pushOut');
-    const b=m.querySelector('#pushTest'); b.disabled=true; b.textContent='Проверяем…';
-    out.textContent='';
-    if(!window.Notification || Notification.permission!=='granted'){
-      out.textContent='Сначала включите уведомления кнопкой выше.';
-      b.disabled=false; b.textContent='Проверить доставку при закрытом сайте'; return;
-    }
-    const s=await subscribePush();
-    if(!s.ok){
-      out.innerHTML='Подписка не создалась: '+esc(s.why);
-      b.disabled=false; b.textContent='Проверить доставку при закрытом сайте'; return;
-    }
-    out.innerHTML='Служба доставки: <b>'+esc(s.host||'?')+'</b><br>';
-    const r=await pushTo([me.uid],'WhereApp','Проверка доставки при закрытом сайте');
-    const head='Служба доставки: <b>'+esc(s.host||'?')+'</b><br>';
-    if(r.error){
-      let hint='';
-      if(r.status===404) hint='Функция не развёрнута. Supabase → Edge Functions → Deploy a new function, имя ровно <b>push</b>.';
-      else if(r.status===401 || r.status===403) hint='Откройте Edge Functions → push → Details и выключите <b>Verify JWT</b>.';
-      else if(r.status===500) hint='Функция упала. Проверьте секреты VAPID_PUBLIC и VAPID_PRIVATE и посмотрите вкладку Logs у функции.';
-      else if(r.network) hint='Запрос вообще не ушёл: функции нет, либо провайдер режет адрес.<br>Проверьте вручную, открыв в браузере:<br><span style="word-break:break-all">'+esc(PUSH_URL)+'</span>';
-      out.innerHTML=head+'<b>'+esc(r.error)+'</b><br>'+hint;
-    }else if(r.sent===0){
-      const e0=(r.errors&&r.errors[0])||null;
-      out.innerHTML = head + (e0
-        ? 'Служба доставки отклонила: <b>'+esc(String(e0.status||''))+' '+esc(e0.why||'')+'</b><br>'
-          +(String(e0.status)==='403'?'Ключи VAPID не совпадают: проверьте секреты функции.':'')
-          +(String(e0.status)==='401'?'Секреты VAPID не заданы или неверны.':'')
-        : ('Функция ответила, но отправлять некому. '+esc(r.note||'Проверьте таблицу push_subs.')));
-    }else{
-      out.innerHTML=head+'Отправлено: '+r.sent+' из '+(r.total||r.sent)+'.'
-        + (r.errors&&r.errors.length ? '<br>Часть не ушла: '+esc(JSON.stringify(r.errors).slice(0,180)) : '')
-        + '<br>Если уведомление не пришло — дело в настройках телефона, откройте «Как получать сообщения всегда».';
-    }
-    b.disabled=false; b.textContent='Проверить доставку при закрытом сайте';
-  };
-  (async()=>{
-    try{
-      const {data}=await sb.from('push_subs').select('endpoint').eq('uid',me.uid);
-      if(data && data.length>1){
-        const o=m.querySelector('#pushOut');
-        o.innerHTML='Подписок на этот аккаунт: <b>'+data.length+'</b>. Лишние могут задваивать уведомления. '
-          +'<a href="#" id="cleanSubs" style="color:var(--p-dark)">Оставить только это устройство</a>';
-        m.querySelector('#cleanSubs').onclick=async(ev)=>{
-          ev.preventDefault();
-          const reg=swReg||await initSW();
-          const s=reg&&reg.pushManager?await reg.pushManager.getSubscription():null;
-          if(!s) return toast('Сначала перезапустите фоновый модуль.',4000);
-          await sb.from('push_subs').delete().eq('uid',me.uid).neq('endpoint',s.endpoint);
-          o.textContent='Готово, осталась одна подписка.';
-        };
-      }
-    }catch(e){}
-  })();
-  q('#swReset').onclick=async()=>{
-    const b=m.querySelector('#swReset'); b.disabled=true; b.textContent='Обновляем…';
-    try{
-      const regs=await navigator.serviceWorker.getRegistrations();
-      for(const r of regs){
-        try{ const s=await r.pushManager.getSubscription(); if(s) await s.unsubscribe(); }catch(e){}
-        await r.unregister();
-      }
-      swReg=null;
-      await initSW();
-      const s=await subscribePush();
-      toast(s.ok?'Фоновый модуль перезапущен, подписка создана заново.':'Не вышло: '+s.why, 5000);
-    }catch(e){ toast('Ошибка: '+(e.message||e),5000); }
-    b.disabled=false; b.textContent='Перезапустить фоновый модуль';
-  };
-  const ga=m.querySelector('#getApk');
-  if(ga) ga.onclick=()=>{ close(); offerApk(true); };
-  q('#howTo').onclick=()=>{
-    modal('<h3>Чтобы сообщения приходили всегда</h3>'
-      +'<p class="sub">Вкладку браузера Android замораживает через несколько секунд — это не отключается. Работают только уведомления, и вот как настроить их правильно.</p>'
-      +'<b style="font-size:12px;color:var(--mut)">1. ВСПЛЫВАЮЩИЕ СВЕРХУ, А НЕ ТОЛЬКО В ШТОРКЕ</b>'
-      +'<p style="font-size:13.5px;margin:6px 0 14px">Настройки телефона → Приложения → ваш браузер → Уведомления. Найдите канал с адресом сайта и поставьте важность <b>«Высокая»</b> или <b>«Показывать поверх других окон»</b>. Там же включите «Разрешить всплывающие».</p>'
-      +'<b style="font-size:12px;color:var(--mut)">2. CHROME</b>'
-      +'<p style="font-size:13.5px;margin:6px 0 14px">Настройки телефона → Приложения → Chrome → Батарея → <b>«Без ограничений»</b>. Затем в меню Chrome «⋮» → «Добавить на главный экран».</p>'
-      +'<b style="font-size:12px;color:var(--mut)">3. ЯНДЕКС БРАУЗЕР</b>'
-      +'<p style="font-size:13.5px;margin:6px 0 14px">Меню «⋮» → Настройки → Уведомления → включите уведомления сайтов и найдите этот адрес в списке. Затем Настройки телефона → Приложения → Яндекс → Батарея → «Без ограничений».</p>'
-      +'<b style="font-size:12px;color:var(--mut)">4. HONOR, HUAWEI, XIAOMI — ОБЯЗАТЕЛЬНО</b>'
-      +'<p style="font-size:13.5px;margin:6px 0 14px">Эти телефоны глушат фоновые процессы жёстче остальных. Настройки → Батарея → <b>«Запуск приложений»</b> (или «Автозапуск»). Найдите браузер, отключите у него автоматическое управление и включите вручную все три пункта: автозапуск, косвенный запуск, работа в фоне. Затем Настройки → Батарея → Дополнительно → выключите «Закрывать энергозатратные приложения». На Honor уведомления без этого не приходят почти никогда.</p>'
-      +'<b style="font-size:12px;color:var(--mut)">5. НЕ ДАВАТЬ ANDROID ВЫГРУЖАТЬ БРАУЗЕР</b>'
-      +'<p style="font-size:13.5px;margin:6px 0 14px">Откройте список запущенных приложений (квадрат или свайп вверх), найдите браузер и нажмите на замочек — тогда система не выгрузит его при нехватке памяти.</p>'
-      +'<p class="note">Держать сам сайт в оперативной памяти принудительно нельзя: браузер не даёт странице такой возможности. Поэтому доставка при закрытом сайте держится на push-уведомлениях — проверьте их кнопкой выше.</p>');
-  };
-  m.querySelector('#blkList').onclick=async()=>{
-    if(!blocked.length) return toast('Список пуст.',2000);
-    await Promise.all(blocked.map(getProfile));
-    const rows=blocked.map(u=>{
-      const p=profiles.get(u)||{};
-      return '<div class="pick"><span class="av" style="width:34px;height:34px;font-size:13px;background:hsl('+hue(u)+' 55% 52%)">'
-        +esc(initials(p.name))+'</span><div style="flex:1"><b style="font-weight:600">'+esc(p.name||'Пользователь')+'</b>'
-        +'<div style="font-size:12.5px;color:var(--mut)">'+esc(p.code||'')+'</div></div>'
-        +'<button class="unb" data-u="'+u+'" style="font-size:12px;font-weight:700;color:var(--p-dark);background:var(--p-soft);padding:6px 10px;border-radius:8px">Разблокировать</button></div>';
-    }).join('');
-    const bl=modal('<h3>Заблокированные</h3><p class="sub">Их сообщения и звонки к вам не приходят</p>'
-      +'<div class="picklist">'+rows+'</div>');
-    bl.m.querySelectorAll('.unb').forEach(btn=>btn.onclick=async()=>{
-      blocked=blocked.filter(u=>u!==btn.dataset.u);
-      await saveBlocked(); bl.close(); renderChatList(); toast('Разблокирован.',2000);
-    });
   };
   m.querySelector('#avPick').onclick=()=>{
     const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
@@ -4254,26 +4136,75 @@ addEventListener('resize',()=>{ $('#btnBack').style.display=(innerWidth<=820&&cu
    ============================================================ */
 let call=null;
 
+const seenRings=new Set();
+
 function watchCalls(){
-  if(userChan) sb.removeChannel(userChan);
-  userChan = sb.channel('user:'+me.uid, {config:{broadcast:{self:false}}})
+  if(userChan) try{ sb.removeChannel(userChan); }catch(e){}
+  userChan = sb.channel('user:'+me.uid+':'+rid(5), {config:{broadcast:{self:false}}})
     .on('broadcast',{event:'ring'}, ({payload})=>{
-      if(isBlocked(payload.from)) return;
-      if(call && call.roomId===payload.roomId) return;
-      if(Date.now()-payload.ts>45000) return;
-      showIncoming(payload);
+      handleRing(payload);
     })
     .on('broadcast',{event:'cancel'}, ({payload})=>{
       const w=document.querySelector('.incoming');
       if(w && w.dataset.room===payload.roomId){ ring(false); w.remove(); }
     })
-    .subscribe();
+    .subscribe(st=>{
+      // На iPhone вебсокет умирает во сне и молчит об этом:
+      // без переподключения входящие звонки просто не доходят
+      if(st==='CHANNEL_ERROR' || st==='TIMED_OUT' || st==='CLOSED') setTimeout(watchCalls, 3000);
+    });
 }
+
+function handleRing(payload){
+  if(!payload || !payload.roomId) return;
+  if(isBlocked(payload.from)) return;
+  if(call && call.roomId===payload.roomId) return;
+  if(seenRings.has(payload.roomId)) return;
+  if(Date.now()-payload.ts>60000) return;
+  seenRings.add(payload.roomId);
+  showIncoming(payload);
+}
+
+/**
+ * Вызов дублируем записью в базе: канал вебсокета мог спать,
+ * и тогда звонок терялся. Запись подхватывается при пробуждении.
+ */
 async function ringUser(uid, payload, event){
-  const ch = sb.channel('user:'+uid, {config:{broadcast:{self:false}}});
-  await new Promise(ok=>ch.subscribe(st=>{ if(st==='SUBSCRIBED') ok(); }));
-  await ch.send({type:'broadcast', event:event||'ring', payload});
-  setTimeout(()=>sb.removeChannel(ch), 1500);
+  try{
+    const ch = sb.channel('user:'+uid, {config:{broadcast:{self:false}}});
+    await new Promise(ok=>{
+      let done=false;
+      ch.subscribe(st=>{ if(st==='SUBSCRIBED' && !done){ done=true; ok(); } });
+      setTimeout(()=>{ if(!done){ done=true; ok(); } }, 2500);
+    });
+    await ch.send({type:'broadcast', event:event||'ring', payload});
+    setTimeout(()=>{ try{ sb.removeChannel(ch); }catch(e){} }, 1500);
+  }catch(e){}
+
+  try{
+    if(event==='cancel'){
+      await sb.from('calls').delete().eq('room_id', payload.roomId);
+    }else{
+      await sb.from('calls').insert({
+        room_id:payload.roomId, to_uid:uid, from_uid:me.uid,
+        payload:payload, ts:Date.now()
+      });
+    }
+  }catch(e){}
+}
+
+/** Проверяет, не звонит ли кто-то прямо сейчас. */
+async function checkPendingCalls(){
+  if(call) return;
+  try{
+    const since=Date.now()-60000;
+    const {data}=await sb.from('calls').select('*').eq('to_uid',me.uid).gt('ts',since).limit(3);
+    (data||[]).forEach(r=>{
+      const p=r.payload||{};
+      p.roomId=p.roomId||r.room_id; p.from=p.from||r.from_uid; p.ts=p.ts||Number(r.ts);
+      handleRing(p);
+    });
+  }catch(e){}
 }
 
 $('#btnAudioCall').onclick=()=>startCall(false);
@@ -4331,6 +4262,13 @@ function showIncoming(inv){
   const old=document.querySelector('.incoming'); if(old) old.remove();
   audioCtx();
   ring(true);
+  // если контекст успел заснуть, мелодия не зазвучит — будим и повторяем
+  setTimeout(()=>{
+    try{
+      const a=audioCtx();
+      if(a && a.state==='suspended'){ a.resume(); ring(false); ring(true); }
+    }catch(e){}
+  }, 300);
   // Одно уведомление на iOS звучит однократно и легко теряется —
   // напоминаем несколько раз, пока вызов не принят
   let rings=0;
@@ -4351,9 +4289,13 @@ function showIncoming(inv){
   document.body.appendChild(w);
   const kill=()=>{ ring(false); stopLoop(); w.remove(); };
   const timer=setTimeout(kill,45000);
-  w.querySelector('#dec').onclick=()=>{ clearTimeout(timer); kill(); };
+  w.querySelector('#dec').onclick=()=>{
+    clearTimeout(timer); kill();
+    sb.from('calls').delete().eq('room_id', inv.roomId).then(()=>{},()=>{});
+  };
   w.querySelector('#acc').onclick=async()=>{
     clearTimeout(timer); kill();
+    try{ await sb.from('calls').delete().eq('room_id', inv.roomId); }catch(e){}
     const c=chats.get(inv.chatId)||{id:inv.chatId,type:'direct',members:[me.uid,inv.from],gkeys:{}};
     try{ await joinRoom(inv.roomId,c,inv.video,false); }catch(e){}
   };
