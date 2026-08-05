@@ -2448,14 +2448,13 @@ const STORAGE_LIMIT = 1024*1024*1024;      // гигабайт на беспла
 
 /** Считает вес вложений во всех чатах, где я состою. */
 async function storageUsage(){
-  const ids=[...chats.values()].map(c=>c.id);
-  if(!ids.length) return {bytes:0, items:[]};
+  // Хранилище одно на всех, поэтому считаем вложения во всех чатах,
+  // а не только в своих: иначе цифра занижена и уборка запускается поздно
   const {data,error}=await sb.from('messages')
     .select('id,chat_id,ts,kind,meta,blob')
-    .in('chat_id',ids)
     .not('blob','is',null)
     .order('ts',{ascending:true})
-    .limit(2000);
+    .limit(5000);
   if(error) throw error;
   let bytes=0;
   const items=[];
@@ -3928,8 +3927,9 @@ $('#btnSettings').onclick=()=>{
       bar.classList.toggle('warn', pct>=70 && pct<90);
       bar.classList.toggle('full', pct>=90);
       txt.innerHTML='Занято <b>'+sizeStr(bytes)+'</b> из 1 ГБ · вложений: '+items.length
-        + '<br><span style="opacity:.8">При заполнении выше 80% самые старые вложения удаляются сами, '
-        + 'равномерно во всех чатах. Переписка остаётся.</span>';
+        + '<br><span style="opacity:.8">Место общее для всех пользователей мессенджера. '
+        + 'При заполнении выше 80% самые старые вложения удаляются сами, равномерно во всех чатах. '
+        + 'Переписка остаётся.</span>';
       if(pct>=CLEAN_START*100) autoClean(true);
     }catch(e){ txt.textContent='Не удалось посчитать: '+(e.message||e); }
   })();
