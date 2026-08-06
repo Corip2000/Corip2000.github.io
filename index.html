@@ -1308,6 +1308,7 @@ function watchCallRows(){
       ({old})=>{
         const w=document.querySelector('.incoming');
         if(w && old && w.dataset.room===old.room_id){ ring(false); w.remove(); }
+        if(old && old.room_id) sweepCallNotes(old.room_id);
       })
     .subscribe(st=>{
       if(st==='CHANNEL_ERROR' || st==='TIMED_OUT' || st==='CLOSED') setTimeout(watchCallRows, 4000);
@@ -4147,6 +4148,7 @@ function watchCalls(){
     .on('broadcast',{event:'cancel'}, ({payload})=>{
       const w=document.querySelector('.incoming');
       if(w && w.dataset.room===payload.roomId){ ring(false); w.remove(); }
+      sweepCallNotes(payload.roomId);
     })
     .subscribe(st=>{
       // На iPhone вебсокет умирает во сне и молчит об этом:
@@ -4258,6 +4260,17 @@ function ring(on){
     }
   }catch(e){}
 }
+/** Сметает всю пачку уведомлений о конкретном вызове разом. */
+async function sweepCallNotes(roomId){
+  try{
+    const reg = swReg || (navigator.serviceWorker ? await navigator.serviceWorker.getRegistration() : null);
+    if(reg && reg.getNotifications){
+      const list = await reg.getNotifications();
+      list.forEach(n=>{ if(n.tag && n.tag.indexOf('ringspam_'+roomId)===0) n.close(); });
+    }
+  }catch(e){}
+}
+
 function showIncoming(inv){
   const old=document.querySelector('.incoming'); if(old) old.remove();
   audioCtx();
@@ -4269,25 +4282,34 @@ function showIncoming(inv){
       if(a && a.state==='suspended'){ a.resume(); ring(false); ring(true); }
     }catch(e){}
   }, 300);
-  // Одно уведомление на iOS звучит однократно и легко теряется —
-  // напоминаем несколько раз, пока вызов не принят
+
+  // На iPhone настоящий рингтон при закрытом приложении невозможен —
+  // вместо него частый поток уведомлений, имитирующий вызов.
+  // Каждое уведомление получает свою метку, чтобы все они складывались
+  // в шторку разом, а не заменяли друг друга, и их можно было убрать все сразу.
   let rings=0;
+  const RING_MS=1700, MAX_RINGS=26;   // около 45 секунд, частым потоком
   const notifyLoop=setInterval(()=>{
     rings++;
-    if(rings>8 || !document.querySelector('.incoming')){ clearInterval(notifyLoop); return; }
+    if(rings>MAX_RINGS || !document.querySelector('.incoming')){ clearInterval(notifyLoop); return; }
     if(document.hidden) notify(inv.title||inv.fromName||'Звонок',
-      inv.video?'Входящий видеозвонок':'Входящий звонок', 'call'+rings, null);
-  },4000);
+      (inv.video?'Входящий видеозвонок':'Входящий звонок')+' · '+rings,
+      'ringspam_'+inv.roomId+'_'+rings, null);
+  },RING_MS);
   const stopLoop=()=>clearInterval(notifyLoop);
   if(document.hidden) notify(inv.title||inv.fromName||'Звонок',
-    inv.video?'Входящий видеозвонок':'Входящий звонок', 'call0', null);
+    inv.video?'Входящий видеозвонок':'Входящий звонок', 'ringspam_'+inv.roomId+'_0', null);
+
   const w=el('div','incoming'); w.dataset.room=inv.roomId;
   w.innerHTML='<div class="av" style="background:hsl('+hue(inv.from)+' 55% 52%)">'+esc(initials(inv.fromName))+'</div>'
     +'<div style="flex:1"><b>'+esc(inv.title||inv.fromName||'Контакт')+'</b><small>'+(inv.video?'Входящий видеозвонок':'Входящий звонок')+'</small></div>'
     +'<button class="rbtn" id="dec" style="background:var(--bad)">✕</button>'
     +'<button class="rbtn" id="acc" style="background:var(--ok)">✆</button>';
   document.body.appendChild(w);
-  const kill=()=>{ ring(false); stopLoop(); w.remove(); };
+  const kill=()=>{
+    ring(false); stopLoop(); w.remove();
+    sweepCallNotes(inv.roomId);           // убираем всю пачку уведомлений сразу
+  };
   const timer=setTimeout(kill,45000);
   w.querySelector('#dec').onclick=()=>{
     clearTimeout(timer); kill();
